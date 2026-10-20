@@ -4,15 +4,16 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-    # Amlogic's boot firmware blobs + signing tools. This is the same repo the
-    # official U-Boot docs for this board tell you to use.
-    amlogic-boot-fip = {
-      url = "github:LibreELEC/amlogic-boot-fip";
-      flake = false;
+    # Boot-stage components (vendor blobs today, open replacements over time) and the
+    # FIP packaging live in their own repo. For local development of that repo:
+    #   nix build ... --override-input m5-open-boot path:../m5-open-boot
+    m5-open-boot = {
+      url = "github:yorqat/m5-open-boot"; # TODO: point at wherever you publish it
+      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
-  outputs = { self, nixpkgs, amlogic-boot-fip, ... }:
+  outputs = { self, nixpkgs, m5-open-boot, ... }:
     let
       # ---------------------------- EDIT ME ----------------------------
       hostName = "bpi-m5";
@@ -26,6 +27,11 @@
       # Console/SSH login. CHANGE THE PASSWORD after logging in (run `passwd`).
       userName = "bpi";
       userInitialPassword = "bpi";
+
+      # Boot components to replace with open versions from m5-open-boot. Empty = all
+      # vendor blobs. Names are listed in m5-open-boot's nix/components.nix, e.g.
+      #   bootOverrides = { bl30 = "${m5-open-boot.packages.x86_64-linux.bl30-open}/bl30.bin"; };
+      bootOverrides = { };
       # ------------------------------------------------------------------
 
       lib = nixpkgs.lib;
@@ -44,52 +50,13 @@
         filesToInstall = [ "u-boot.bin" ];
       };
 
-      # U-Boot wrapped in Amlogic's signed boot package (FIP).
-      uboot-fip = pkgsHost.stdenv.mkDerivation {
-        pname = "uboot-bananapi-m5-fip";
-        version = "git";
-        src = amlogic-boot-fip;
-
-        nativeBuildInputs = with pkgsHost; [ python3 gnumake patchelf util-linux ];
-
-        dontConfigure = true;
-        dontFixup = true;
-
-        buildPhase = ''
-          runHook preBuild
-
-          # Make the repo's scripts runnable inside the Nix sandbox.
-          patchShebangs .
-
-          # Amlogic's signing tools are prebuilt x86_64 binaries; point them at
-          # Nix's dynamic linker/libs so they can run.
-          interp="$(cat $NIX_CC/nix-support/dynamic-linker)"
-          rpath="${pkgsHost.lib.makeLibraryPath [ pkgsHost.stdenv.cc.cc.lib pkgsHost.zlib ]}"
-          for f in $(find . -type f -name 'aml_encrypt_*'); do
-            chmod +x "$f"
-            patchelf --set-interpreter "$interp" --set-rpath "$rpath" "$f" \
-              || echo "note: could not patch $f (already static?)"
-          done
-
-          mkdir -p out
-          ./build-fip.sh bananapi-m5 ${uboot-raw}/u-boot.bin out
-
-          test -s out/u-boot.bin
-          test -s out/u-boot.bin.sd.bin
-
-          # Sanity check from the wiki: the signed file must contain "@AML".
-          hexdump -C -n 32 out/u-boot.bin | grep -q "40 41 4d 4c" \
-            || { echo "ERROR: @AML marker missing - FIP signing failed"; exit 1; }
-
-          runHook postBuild
-        '';
-
-        installPhase = ''
-          runHook preInstall
-          mkdir -p $out
-          cp out/u-boot.bin* $out/
-          runHook postInstall
-        '';
+      # U-Boot wrapped in Amlogic's signed boot package (FIP), built by m5-open-boot.
+      # The output includes MANIFEST.sha256: keep it with your boot logs.
+      uboot-fip = m5-open-boot.lib.mkFip {
+        pkgs = pkgsHost;
+        board = "bananapi-m5";
+        bl33 = "${uboot-raw}/u-boot.bin";
+        overrides = bootOverrides;
       };
 
       # ---- NixOS modules ----------------------------------------------------

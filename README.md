@@ -44,10 +44,14 @@ runs ARM tools under emulation.
 
 ## Part 1: Configure
 
+Run `nix flake lock` once (the flake now has a `m5-open-boot` input; to develop that repo
+alongside, add `--override-input m5-open-boot path:../m5-open-boot` to nix commands).
+
 Open `flake.nix` and edit the block marked `EDIT ME`:
 
 - Paste your SSH public key into `sshKeys` (recommended).
-- Optionally change `hostName`, `userName` and the first-boot password.
+- Optionally change `hostName`, `userName` and the first-boot password (the default is `bpi`).
+- `bootOverrides` selects open boot components; leave it empty for the all-vendor baseline.
 
 If you put this folder in a git repo, `git add` every file first, because flakes
 ignore untracked files.
@@ -77,7 +81,7 @@ gets you back to the original eMMC system.
 
 - Insert the card, connect Ethernet (and HDMI or a 3.3V USB serial adapter at
   115200 baud), power on. The first boot expands the root partition.
-- Log in as `bpi` (password `changeme` unless you changed it), or SSH in using the
+- Log in as `bpi` (password `bpi` unless you changed it), or SSH in using the
   IP address from your router. Change the password with `passwd`.
 - The SD card is a live system. To make NixOS permanent, install it to the eMMC
   (Part 5).
@@ -144,16 +148,18 @@ on boot. A leftover vendor bootloader in the eMMC's hardware boot partitions
 - **U-Boot isn't managed by `nixos-rebuild`.** It lives outside the NixOS
   partitions, so updating NixOS won't update it. To change it, rebuild the SD image
   and rerun the installer from that card.
-- **Proprietary firmware:** Amlogic's boot blobs come from the LibreELEC
-  `amlogic-boot-fip` repo (the one U-Boot's own docs point to).
+- **Proprietary firmware:** Amlogic's boot blobs are fetched and packaged by the separate
+  `m5-open-boot` repo (an input of this flake), which gets them from the LibreELEC
+  `amlogic-boot-fip` repo (the one U-Boot's own docs point to). Open replacements are developed
+  there and switched on here through `bootOverrides` in `flake.nix`. None exist yet.
 
 ## If the build fails
 
 - **"Your Nix isn't set up to build aarch64"**: redo Part 0 step 2.
-- **The `uboot-fip` step fails or complains about a missing `.so` file:** Amlogic's
-  signing tools are prebuilt binaries and may need an extra library. Copy the
-  exact error and send it to whoever is helping you.
+- **The `uboot-fip` step fails:** the signing tool is a statically linked x86_64 binary, so a
+  missing library is not expected. Copy the exact error and send it to whoever is helping you.
 - **`@AML marker missing`:** signing failed. Don't flash; share the log.
+- **Which boot blobs went into an image?** Look at `MANIFEST.sha256` in `result/` of `nix build .#uboot-fip`.
 - **Option/attribute errors from the NixOS module:** nixpkgs changes over time.
   Share the error text; the fix is usually one line in `flake.nix`.
 
