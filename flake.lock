@@ -16,6 +16,27 @@
         "type": "github"
       }
     },
+    "m5-open-boot": {
+      "inputs": {
+        "amlogic-boot-fip": "amlogic-boot-fip",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1792529628,
+        "narHash": "sha256-5zighKz29gkQNIV2WKsI7V/O0ef8H1of8+3pfk7yLZA=",
+        "owner": "yorqat",
+        "repo": "m5-open-boot",
+        "rev": "334ba7ae5b7e6fca3126395c825a7fb18f4a33c7",
+        "type": "github"
+      },
+      "original": {
+        "owner": "yorqat",
+        "repo": "m5-open-boot",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1790822859,
@@ -34,7 +55,7 @@
     },
     "root": {
       "inputs": {
-        "amlogic-boot-fip": "amlogic-boot-fip",
+        "m5-open-boot": "m5-open-boot",
         "nixpkgs": "nixpkgs"
       }
     }
