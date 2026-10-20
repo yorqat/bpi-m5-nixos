@@ -8,7 +8,7 @@
     # FIP packaging live in their own repo. For local development of that repo:
     #   nix build ... --override-input m5-open-boot path:../m5-open-boot
     m5-open-boot = {
-      url = "github:yorqat/m5-open-boot"; # TODO: point at wherever you publish it
+      url = "github:yorqat/m5-open-boot";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
