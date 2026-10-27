@@ -202,7 +202,7 @@
       };
 
       # The live SD card image.
-      sdModule = { config, lib, pkgs, ... }: {
+      sdModule = { config, lib, pkgs, self, ... }: {
         imports = [
           "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
         ];
@@ -219,6 +219,22 @@
             dd if=${uboot-fip}/u-boot.bin.sd.bin of=$img conv=fsync,notrunc bs=1 count=440
           '';
         };
+
+        environment.systemPackages = with pkgs; [
+          (writeShellScriptBin "install-to-emmc" ''
+            cd /bpi-m5-nixos
+            exec sudo nix run .#install-to-emmc "$@"
+          '')
+        ];
+
+        system.activationScripts.bpiM5Repo = lib.stringAfter [ "users" ] ''
+          mkdir -p /bpi-m5-nixos
+          cp -r ${self}/* /bpi-m5-nixos/ 2>/dev/null || true
+          cp -r ${self}/.[!.]* /bpi-m5-nixos/ 2>/dev/null || true
+          rm -rf /bpi-m5-nixos/.git /bpi-m5-nixos/.direnv /bpi-m5-nixos/out 2>/dev/null || true
+          chmod -R u+w /bpi-m5-nixos 2>/dev/null || true
+          chown -R ${userName}:${userName} /bpi-m5-nixos 2>/dev/null || true
+        '';
       };
 
       # The system that gets installed onto the eMMC. The bootloader itself is not
@@ -265,6 +281,7 @@
       # The live SD card system.
       nixosConfigurations."${hostName}-sd" = lib.nixosSystem {
         system = "aarch64-linux";
+        specialArgs = { inherit self; };
         modules = [ commonModule sdModule ];
       };
 
