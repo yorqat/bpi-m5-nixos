@@ -21,20 +21,18 @@
         "amlogic-boot-fip": "amlogic-boot-fip",
         "nixpkgs": [
           "nixpkgs"
-        ]
+        ],
+        "rust-overlay": "rust-overlay"
       },
       "locked": {
-        "lastModified": 1792529628,
-        "narHash": "sha256-5zighKz29gkQNIV2WKsI7V/O0ef8H1of8+3pfk7yLZA=",
-        "owner": "yorqat",
-        "repo": "m5-open-boot",
-        "rev": "334ba7ae5b7e6fca3126395c825a7fb18f4a33c7",
-        "type": "github"
+        "lastModified": 1792642073,
+        "narHash": "sha256-XXy7Mv9DZRtBgEJwVxQdlV/FaLTOVrbhGKO9T61GA3Q=",
+        "path": "/dat/Documents/A-Work/1-Fling/m5-open-boot",
+        "type": "path"
       },
       "original": {
-        "owner": "yorqat",
-        "repo": "m5-open-boot",
-        "type": "github"
+        "path": "/dat/Documents/A-Work/1-Fling/m5-open-boot",
+        "type": "path"
       }
     },
     "nixpkgs": {
@@ -57,6 +55,27 @@
       "inputs": {
         "m5-open-boot": "m5-open-boot",
         "nixpkgs": "nixpkgs"
+      }
+    },
+    "rust-overlay": {
+      "inputs": {
+        "nixpkgs": [
+          "m5-open-boot",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1792480937,
+        "narHash": "sha256-arni7i+yH5ZnkvAN9UotvhMml5+fZyXcMHpiOvI3WFY=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "5424e1e6dda30b0626935d2a03a6526db4858d60",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
       }
     }
   },

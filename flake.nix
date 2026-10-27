@@ -8,7 +8,8 @@
     # FIP packaging live in their own repo. For local development of that repo:
     #   nix build ... --override-input m5-open-boot path:../m5-open-boot
     m5-open-boot = {
-      url = "github:yorqat/m5-open-boot";
+      # url = "github:yorqat/m5-open-boot";
+      url = "path:/dat/Documents/A-Work/1-Fling/m5-open-boot";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -31,7 +32,14 @@
       # Boot components to replace with open versions from m5-open-boot. Empty = all
       # vendor blobs. Names are listed in m5-open-boot's nix/components.nix, e.g.
       #   bootOverrides = { bl30 = "${m5-open-boot.packages.x86_64-linux.bl30-open}/bl30.bin"; };
-      bootOverrides = { };
+      #
+      # TEST: open scaffold blobs from m5-open-boot. These are non-functional
+      # placeholders (no scheduler / SVC dispatch yet). Expected effect: the boot
+      # visibly diverges from vendor right after BL30 starts.
+      bootOverrides = {
+        bl30 = "${m5-open-boot.packages.x86_64-linux.bl30-open}/bl30.bin";
+        bl301 = "${m5-open-boot.packages.x86_64-linux.bl301-open}/bl301.bin";
+      };
       # ------------------------------------------------------------------
 
       lib = nixpkgs.lib;
