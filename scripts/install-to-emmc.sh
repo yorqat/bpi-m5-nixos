@@ -128,6 +128,16 @@ nixos-install --root "$ROOT" --flake "$FLAKE_REF#$HOST_NAME" --no-root-passwd
 # Keep a copy of the flake on the new system so you can rebuild from the board.
 mkdir -p "$ROOT/etc/bpi-m5-nixos"
 cp -rT --no-preserve=mode,ownership "$FLAKE_REF" "$ROOT/etc/bpi-m5-nixos"
+chown -R ${userName}:${userName} "$ROOT/etc/bpi-m5-nixos" 2>/dev/null || true
+
+# Optional: drop a quick note for the user
+mkdir -p "$ROOT/etc/motd.d"
+cat > "$ROOT/etc/motd.d/99-bpi-m5" <<'EOF'
+NixOS installed from bpi-m5-nixos flake
+Rebuild: nh os switch /etc/bpi-m5-nixos  (or sudo nixos-rebuild switch --flake /etc/bpi-m5-nixos#bpi-m5)
+Copy edits from PC: rsync -av flake.nix scripts/ user@board:/etc/bpi-m5-nixos/
+EOF
+chmod 644 "$ROOT/etc/motd.d/99-bpi-m5" 2>/dev/null || true
 
 # ---- 5. Finish --------------------------------------------------------------
 cleanup
@@ -140,4 +150,5 @@ echo "    1. Power off:  sudo poweroff"
 echo "    2. Take the SD card OUT."
 echo "    3. Power the board on again. It should boot from the eMMC."
 echo "    To change the system later, on the board:"
-echo "        sudo nixos-rebuild switch --flake /etc/bpi-m5-nixos#$HOST_NAME"
+echo "        nh os switch /etc/bpi-m5-nixos"
+echo "        or: sudo nixos-rebuild switch --flake /etc/bpi-m5-nixos#$HOST_NAME"

@@ -114,8 +114,89 @@
           settings.PasswordAuthentication = sshKeys == [ ];
         };
 
-        nix.settings.experimental-features = [ "nix-command" "flakes" ];
-        environment.systemPackages = with pkgs; [ git vim htop rsync ];
+        # mDNS (.local) resolution
+        services.avahi = {
+          enable = true;
+          nssmdns4 = true;
+          publish = {
+            enable = true;
+            addresses = true;
+            userServices = true;
+          };
+        };
+
+        # OOM protection
+        services.earlyoom.enable = true;
+
+        # Nix QoL
+        nix.settings = {
+          experimental-features = [ "nix-command" "flakes" ];
+          auto-optimise-store = true;
+        };
+        nix.gc = {
+          automatic = true;
+          dates = "weekly";
+          options = "--delete-older-than 30d";
+        };
+
+        # Direnv for per-project environments
+        programs.direnv = {
+          enable = true;
+          nix-direnv.enable = true;
+        };
+
+        # Compressed swap in RAM to avoid OOMs on 4GB boards
+        zramSwap = {
+          enable = true;
+          memoryPercent = 50;
+        };
+
+        # Firmware for USB WiFi/Bluetooth dongles
+        hardware.enableRedistributableFirmware = true;
+
+        # Networking (needed for USB WiFi dongles)
+        networking.networkmanager.enable = true;
+
+        # Bluetooth
+        hardware.bluetooth = {
+          enable = true;
+          powerOnBoot = true;
+        };
+        services.blueman.enable = true;
+
+        environment.systemPackages = with pkgs; [
+          git
+          vim
+          neovim
+          htop
+          btop
+          rsync
+          fastfetch
+          tmux
+          ripgrep
+          fd
+          eza
+          zoxide
+          ncdu
+          tree
+          curl
+          wget
+          unzip
+          jq
+          lm_sensors
+          ethtool
+          pciutils
+          usbutils
+          smartmontools
+          nh
+          comma
+          nil
+          nixd
+          alejandra
+          just
+          bluez
+          bluez-tools
+        ];
 
         system.stateVersion = "25.11";
       };
@@ -151,8 +232,6 @@
 
         boot.loader.grub.enable = false;
         boot.loader.generic-extlinux-compatible.enable = true;
-
-        zramSwap.enable = true;
       };
 
       # ---- The installer, as a flake app ------------------------------------
@@ -205,6 +284,24 @@
       apps.aarch64-linux.install-to-emmc = {
         type = "app";
         program = "${install-to-emmc}/bin/install-to-emmc";
+      };
+
+      # Dev shell for editing this repo on your build machine
+      devShells.${buildHost}.default = pkgsHost.mkShell {
+        packages = with pkgsHost; [
+          git
+          nixpkgs-fmt
+          alejandra
+          nil
+          nixd
+          just
+          ssh-to-age
+        ];
+        shellHook = ''
+          echo "bpi-m5-nixos dev shell"
+          echo "  build image: ./build.sh or nix build .#packages.aarch64-linux.image"
+          echo "  flash:       ./flash.sh /dev/sdX"
+        '';
       };
     };
 }
