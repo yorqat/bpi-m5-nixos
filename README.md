@@ -6,8 +6,9 @@ Builds a flashable NixOS SD-card image (`out/bpi-m5-nixos.img`) for the BPI-M5
 build mainline U-Boot, sign it with Amlogic's tools, embed it in the NixOS image,
 and switch the serial console to `ttyAML0`.
 
-> **Status: untested.** I wrote this without a Nix machine to try it on, so expect
-> to possibly fix a small thing on the first run. See "If the build fails".
+> **Status: build verified, hardware untested.** `nix flake check --all-systems`
+> passes and both the SD image and installer build on x86_64 Linux. Booting on a
+> real BPI-M5 is still unverified. See "If the build fails".
 
 ## Files
 
@@ -36,17 +37,20 @@ echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 
 Reopen your terminal afterwards.
 
-**2. Let Nix run ARM programs.** The board is ARM and your PC isn't, so the build
-runs ARM tools under emulation.
+**2. Let Nix run other-architecture programs.** The image is aarch64, and the
+Amlogic signing tools are x86_64, so at least one of those runs under emulation.
 
-- NixOS: add `boot.binfmt.emulatedSystems = [ "aarch64-linux" ];` to your
-  config and rebuild.
-- Other distros: install QEMU user emulation, then tell Nix:
-  ```
-  sudo apt install qemu-user-static binfmt-support
-  echo 'extra-platforms = aarch64-linux' | sudo tee -a /etc/nix/nix.conf
-  sudo systemctl restart nix-daemon
-  ```
+- On x86_64 Linux, enable aarch64 emulation:
+  - NixOS: add `boot.binfmt.emulatedSystems = [ "aarch64-linux" ];` to your
+    config and rebuild.
+  - Other distros: install QEMU user emulation, then tell Nix:
+    ```
+    sudo apt install qemu-user-static binfmt-support
+    echo 'extra-platforms = aarch64-linux' | sudo tee -a /etc/nix/nix.conf
+    sudo systemctl restart nix-daemon
+    ```
+- On aarch64 Linux, enable x86_64 emulation instead (`extra-platforms =
+  x86_64-linux`, or point Nix at a remote x86_64 builder) for the signing step.
 
 ## Part 1: Configure
 
@@ -68,6 +72,7 @@ versions; keep it in sync with flake changes for repeatable builds.
 `./build.sh` is the canonical build path. The equivalent direct command is
 `nix build .#sd-image` (output in `result/`). No architecture appears in either
 command; the flake defines the same outputs on every supported Linux host.
+`nix flake check --all-systems` validates both host outputs.
 
 ## Part 3: Flash to a microSD card
 
@@ -77,7 +82,8 @@ command; the flake defines the same outputs on every supported Linux host.
 ```
 
 The same tool is available as a flake app: `nix run .#flash -- /dev/sdX`. It uses
-the image built by the flake, so it works from any directory.
+the image built by the flake (building it first if needed), so it works from any
+directory.
 
 It refuses mounted disks and makes you retype the device path before writing.
 Prefer **microSD, not the board's eMMC**, for the first attempt: pulling the card
@@ -158,9 +164,9 @@ on boot. A leftover vendor bootloader in the eMMC's hardware boot partitions
 ## If the build fails
 
 - **"Your Nix isn't set up to build aarch64"**: redo Part 0 step 2.
-- **The `uboot-fip` step fails or complains about a missing `.so` file:** Amlogic's
-  signing tools are prebuilt binaries and may need an extra library. Copy the
-  exact error and send it to whoever is helping you.
+- **The `uboot-fip` step fails:** the build already points Amlogic's prebuilt
+  signing tools at Nix's linker and libs. If one still won't run, copy the exact
+  error and send it to whoever is helping you.
 - **`@AML marker missing`:** signing failed. Don't flash; share the log.
 - **Option/attribute errors from the NixOS module:** nixpkgs changes over time.
   Share the error text; the fix is usually one line in `flake.nix`.
