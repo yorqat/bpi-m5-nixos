@@ -23,14 +23,9 @@ thin convenience wrappers around those flake commands.
 | `scripts/install-to-emmc.sh` | Backs `nix run .#install-to-emmc` |
 | `scripts/common.sh`, `scripts/bootloader.sh` | Shared disk guards and the single bootloader layout definition |
 
-## Part 0: One-time setup on your Linux PC
+## Step 0: Install Nix and enable flakes
 
-The signing tools are x86_64 binaries, so the normal build host is x86_64 Linux.
-An aarch64 Linux host also works if it can run x86_64 binaries (binfmt +
-`extra-platforms = x86_64-linux`, or a remote x86_64 builder). macOS needs an
-x86_64 Linux VM — the commands are the same on any supported host.
-
-**1. Install Nix and enable flakes** (skip on NixOS, which just needs flakes enabled):
+Skip the install on NixOS, which only needs flakes enabled in `configuration.nix`:
 
 ```
 sh <(curl -L https://nixos.org/nix/install) --daemon
@@ -40,7 +35,14 @@ echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 
 Reopen your terminal afterwards.
 
-**2. Let Nix run other-architecture programs.** The image is aarch64, and the
+## Part 0: One-time setup on your Linux PC
+
+The signing tools are x86_64 binaries, so the normal build host is x86_64 Linux.
+An aarch64 Linux host also works if it can run x86_64 binaries (binfmt +
+`extra-platforms = x86_64-linux`, or a remote x86_64 builder). macOS needs an
+x86_64 Linux VM — the commands are the same on any supported host.
+
+**1. Let Nix run other-architecture programs.** The image is aarch64, and the
 Amlogic signing tools are x86_64, so at least one of those runs under emulation.
 
 - On x86_64 Linux, enable aarch64 emulation:
@@ -167,7 +169,8 @@ on boot. A leftover vendor bootloader in the eMMC's hardware boot partitions
 
 ## If the build fails
 
-- **"Your Nix isn't set up to build aarch64"**: redo Part 0 step 2.
+- **"Nix is not installed"**: redo Step 0.
+- **"Your Nix isn't set up to build aarch64"**: redo Part 0 step 1.
 - **The `uboot-fip` step fails:** the build already points Amlogic's prebuilt
   signing tools at Nix's linker and libs. If one still won't run, copy the exact
   error and send it to whoever is helping you.
