@@ -5,22 +5,24 @@ cd "$(dirname "$0")"
 
 source scripts/common.sh
 
-command -v nix >/dev/null 2>&1 || die "Nix is not installed. See README.md, 'Part 0'."
+command -v nix >/dev/null 2>&1 || die "Nix is not installed. See README.md, 'Step 0'."
 
 NIX_FLAGS=(--extra-experimental-features "nix-command flakes")
 
-if [ "$(uname -m)" != "x86_64" ]; then
-  die "This project expects an x86_64 build machine (Amlogic's signing tools are x86_64-only)."
-fi
+# The target is aarch64 and the signing tools are x86_64, so whichever one
+# differs from the build host must be enabled as an emulated platform.
+case "$(uname -m)" in
+  x86_64) need="aarch64-linux" ;;
+  aarch64) need="x86_64-linux" ;;
+  *) die "Unsupported build host: $(uname -m) (need x86_64-linux or aarch64-linux)." ;;
+esac
 
-# We're building an aarch64 system on an x86_64 PC, so Nix needs to be able to
-# run aarch64 programs (via QEMU emulation).
 cfg="$(nix "${NIX_FLAGS[@]}" config show 2>/dev/null || nix show-config 2>/dev/null || true)"
-if ! grep -Eq '^extra-platforms.*aarch64-linux' <<<"$cfg"; then
-  cat >&2 <<'EOF'
-ERROR: Your Nix can't run aarch64 (ARM) programs yet.
-  NixOS: boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
-  Other distros: qemu-user-static + extra-platforms = aarch64-linux.
+if ! grep -Eq "^extra-platforms.*$need" <<<"$cfg"; then
+  cat >&2 <<EOF
+ERROR: Your Nix can't run $need programs yet.
+  NixOS: boot.binfmt.emulatedSystems = [ "$need" ];
+  Other distros: qemu-user-static + extra-platforms = $need.
   See README.md, 'Part 0', for the exact commands, then rerun this script.
 EOF
   exit 1
@@ -43,5 +45,5 @@ echo "==> Done: $(pwd)/$out_img"
 ls -lh "$out_img"
 sha256sum "$out_img"
 echo
-echo "Next: insert a microSD card and run   ./flash.sh /dev/sdX"
-echo "(run 'lsblk' to find the right device - flash.sh will also show you the list)"
+echo "Next: insert a microSD card and run   nix run .#flash -- /dev/sdX"
+echo "(run 'lsblk' to find the right device - the flash app will also show you the list)"

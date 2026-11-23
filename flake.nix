@@ -214,7 +214,9 @@
           "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
         ];
 
-        image.fileName = "bpi-m5-nixos.img";
+        # nixpkgs builds $out/sd-image/${image.baseName}.${image.extension};
+        # image.fileName is only a derived option, so set the base name here.
+        image.baseName = "bpi-m5-nixos";
         sdImage.compressImage = false; # plain .img you can dd directly
 
         # The layout lives in scripts/bootloader.sh, shared with the installer.
@@ -307,10 +309,11 @@
       };
 
       # nix build .#sd-image  /  .#uboot-fip  (no system in the command)
-      packages = eachSystem (_: {
+      packages = eachSystem (s: {
         default = sdImage;
         sd-image = sdImage;
-        inherit uboot-raw uboot-fip;
+        flash = flashFor s;
+        inherit uboot-raw uboot-fip install-to-emmc;
       });
 
       # nix run .#flash -- /dev/sdX  on any supported host;

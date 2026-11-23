@@ -22,6 +22,7 @@ thin convenience wrappers around those flake commands.
 | `flash.sh`, `scripts/flash-body.sh` | Convenience wrapper and shared body for `nix run .#flash` |
 | `scripts/install-to-emmc.sh` | Backs `nix run .#install-to-emmc` |
 | `scripts/common.sh`, `scripts/bootloader.sh` | Shared disk guards and the single bootloader layout definition |
+| `tests/` | Pre-flight and image-layout checks; see "Testing" |
 
 ## Step 0: Install Nix and enable flakes
 
@@ -166,6 +167,37 @@ on boot. A leftover vendor bootloader in the eMMC's hardware boot partitions
   and rerun the installer from that card.
 - **Proprietary firmware:** Amlogic's boot blobs come from the LibreELEC
   `amlogic-boot-fip` repo (the one U-Boot's own docs point to).
+
+## Testing
+
+Booting from eMMC is the final acceptance test, but not a good *only* test: it
+exercises the whole chain at once and can't tell you whether a failure came from
+the signing step, the image layout, the NixOS config, or the installer. Run the
+cheap layers first.
+
+Host-side, no hardware:
+
+```
+nix flake check --all-systems
+./tests/check.sh                                      # syntax, config assertions, light builds
+nix build .#sd-image -L
+./tests/check-image.sh result/sd-image/bpi-m5-nixos.img
+```
+
+`check-image.sh` compares the image's first 440 bytes and sector-1 payload with
+the built `u-boot.bin.sd.bin`, then checks the MBR signature, the partition start
+(sector 16384) and the `@AML` marker. It doesn't touch a card.
+
+Hardware checklist:
+
+1. Boot from the SD card. Confirm the serial console on `ttyAML0` at 115200 baud
+   (or HDMI) and log in as `bpi` / `bpi`. Change the password.
+2. Confirm the hostname is `bpi-m5` and `/` is on the SD card, not eMMC.
+3. Run the installer with the device spelled out:
+   `sudo nix run .#install-to-emmc -- /dev/mmcblkX`.
+4. `sudo poweroff`, remove the SD card, power on. Repeat steps 1–2 and confirm
+   `/` is now labelled `nixos` on eMMC.
+5. Note the warm-reboot caveat in "Known limitations"; power-cycle if it hangs.
 
 ## If the build fails
 
