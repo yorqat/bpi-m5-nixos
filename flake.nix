@@ -26,6 +26,13 @@
       # Console/SSH login. CHANGE THE PASSWORD after logging in (run `passwd`).
       userName = "bpi";
       userInitialPassword = "bpi";
+
+      # Optional onboard RTL8822CS Wi-Fi mezzanine (BPI-RT8822CS). Setting this
+      # to true only enables the SDIO controller in the device tree; the driver
+      # and firmware are already in the stock kernel/image. It does NOT enable
+      # Bluetooth on that module (that needs a custom kernel). The -wifi flake
+      # variants below enable it without editing this line.
+      enableRtl8822csWifi = false;
       # ------------------------------------------------------------------
 
       lib = nixpkgs.lib;
@@ -101,8 +108,84 @@
 
       # ---- NixOS modules ----------------------------------------------------
 
+      # Opt-in support for the RTL8822CS Wi-Fi mezzanine. Mainline leaves the
+      # SDIO controller (and its UART, used by Bluetooth) disabled on the M5.
+      # Enabling just the SDIO side needs only a device-tree overlay: no custom
+      # kernel build. Bluetooth needs CONFIG_BT_HCIUART_RTL, which is off in the
+      # stock kernel, so it is deliberately not touched here.
+      #
+      # dtc cannot turn standalone &{/path} phandle references into overlay
+      # fixups, so the phandle numbers are read from the pinned kernel's DTB
+      # when this overlay is built. A kernel update therefore can't silently
+      # point at the wrong nodes.
+      rtl8822csDtbo = pkgsSign.runCommand "rtl8822cs-wifi-dtbo" {
+        nativeBuildInputs = with pkgsSign; [ dtc ];
+      } ''
+        dtb="${self.nixosConfigurations."${hostName}".config.boot.kernelPackages.kernel}/dtbs/amlogic/meson-sm1-bananapi-m5.dtb"
+
+        ph() { ${pkgsSign.dtc}/bin/fdtget -t x "$dtb" "$1" phandle; }
+        p_sdio=$(ph /soc/bus@ff600000/bus@34400/pinctrl@40/sdio)
+        p_gate=$(ph /soc/bus@ff600000/bus@34400/pinctrl@40/sdio_clk_gate)
+        p_3v3=$(ph /regulator-vddao-3v3)
+        p_1v8=$(ph /regulator-vddao-1v8)
+        for p in "$p_sdio" "$p_gate" "$p_3v3" "$p_1v8"; do
+          [ -n "$p" ] || { echo "ERROR: missing phandle in $dtb"; exit 1; }
+        done
+
+        cat > overlay.dts <<EOF
+        /dts-v1/;
+        /plugin/;
+
+        / {
+          compatible = "bananapi,bpi-m5";
+        };
+
+        &{/soc/mmc@ffe03000} {
+          status = "okay";
+          pinctrl-names = "default", "clk-gate";
+          pinctrl-0 = <0x$p_sdio>;
+          pinctrl-1 = <0x$p_gate>;
+          #address-cells = <1>;
+          #size-cells = <0>;
+
+          bus-width = <4>;
+          max-frequency = <50000000>;
+          non-removable;
+          disable-wp;
+          keep-power-in-suspend;
+
+          vmmc-supply = <0x$p_3v3>;
+          vqmmc-supply = <0x$p_1v8>;
+
+          wifi@1 {
+            reg = <1>;
+          };
+        };
+        EOF
+
+        dtc -I dts -O dtb -@ -o "$out" overlay.dts
+      '';
+
+      rtl8822csWifiModule = { lib, config, ... }: {
+        options.bpiM5.enableRtl8822csWifi = lib.mkEnableOption
+          "onboard RTL8822CS Wi-Fi (SDIO) mezzanine";
+
+        config = lib.mkIf config.bpiM5.enableRtl8822csWifi {
+          hardware.deviceTree.enable = true;
+          hardware.deviceTree.overlays = [
+            {
+              name = "rtl8822cs-wifi";
+              filter = "meson-sm1-bananapi-m5.dtb";
+              dtboFile = rtl8822csDtbo;
+            }
+          ];
+        };
+      };
+
       # Settings shared by the SD image and the installed (eMMC) system.
       commonModule = { pkgs, ... }: {
+        imports = [ rtl8822csWifiModule ];
+        bpiM5.enableRtl8822csWifi = enableRtl8822csWifi;
         # Serial console on the M5 is ttyAML0 (the stock image uses ttyAMA0).
         boot.kernelParams = lib.mkForce [ "console=ttyAML0,115200n8" "console=tty0" ];
 
@@ -158,10 +241,11 @@
           memoryPercent = 50;
         };
 
-        # Firmware for USB WiFi/Bluetooth dongles
+        # Firmware for USB dongles and for the optional onboard RTL8822CS Wi-Fi
+        # (rtw88-firmware / linux-firmware are already shipped here).
         hardware.enableRedistributableFirmware = true;
 
-        # Networking (needed for USB WiFi dongles)
+        # Networking (needed for Wi-Fi and USB dongles)
         networking.networkmanager.enable = true;
 
         # Bluetooth
@@ -283,6 +367,10 @@
       # can be exposed as a normal package on any supported host system.
       sdImage = self.nixosConfigurations."${hostName}-sd".config.system.build.sdImage;
 
+      # Same image with the SDIO overlay applied, so users can try the onboard
+      # Wi-Fi without editing the ENABLE ME switch in flake.nix.
+      sdImageWifi = self.nixosConfigurations."${hostName}-sd-wifi".config.system.build.sdImage;
+
       # Host-side flashing app. The image is baked in so it works from any cwd.
       flashFor = s: (pkgsFor s).writeShellApplication {
         name = "flash";
@@ -308,10 +396,31 @@
         modules = [ commonModule sdModule ];
       };
 
+      # Opt-in variants with the RTL8822CS Wi-Fi overlay enabled. Useful for
+      # testing without editing the switch in flake.nix.
+      nixosConfigurations."${hostName}-wifi" = lib.nixosSystem {
+        system = "aarch64-linux";
+        modules = [
+          commonModule
+          emmcModule
+          { bpiM5.enableRtl8822csWifi = lib.mkForce true; }
+        ];
+      };
+      nixosConfigurations."${hostName}-sd-wifi" = lib.nixosSystem {
+        system = "aarch64-linux";
+        specialArgs = { inherit self; };
+        modules = [
+          commonModule
+          sdModule
+          { bpiM5.enableRtl8822csWifi = lib.mkForce true; }
+        ];
+      };
+
       # nix build .#sd-image  /  .#uboot-fip  (no system in the command)
       packages = eachSystem (s: {
         default = sdImage;
         sd-image = sdImage;
+        sd-image-wifi = sdImageWifi;
         flash = flashFor s;
         inherit uboot-raw uboot-fip install-to-emmc;
       });
@@ -347,6 +456,7 @@
           shellHook = ''
             echo "bpi-m5-nixos dev shell"
             echo "  build image: ./build.sh or nix build .#sd-image"
+            echo "  onboard Wi-Fi: nix build .#sd-image-wifi --out-link result-wifi"
             echo "  flash:       ./flash.sh /dev/sdX (or nix run .#flash -- /dev/sdX)"
           '';
         };

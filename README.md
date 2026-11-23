@@ -64,6 +64,8 @@ Open `flake.nix` and edit the block marked `EDIT ME`:
 
 - Paste your SSH public key into `sshKeys` (recommended).
 - Optionally change `hostName`, `userName` and the first-boot password (the default is `bpi`).
+- Optionally flip `enableRtl8822csWifi` to `true` if your board has the
+  BPI-RT8822CS Wi-Fi mezzanine fitted (see "Optional: onboard Wi-Fi" below).
 
 ## Part 2: Build
 
@@ -79,6 +81,38 @@ No architecture appears in the command: the flake defines the same outputs on
 every supported Linux host. `nix flake check --all-systems` validates them all.
 If you prefer a copy in `out/bpi-m5-nixos.img`, run `./build.sh` instead — it
 calls the same build.
+
+### Optional: onboard Wi-Fi (BPI-RT8822CS)
+
+If your M5 has the small Realtek RTL8822CS mezzanine fitted, the stock image
+does not use it: mainline leaves the SDIO controller disabled. Wi-Fi can be
+enabled with a device-tree overlay only — **no kernel rebuild** — because the
+`rtw88_8822cs` driver and firmware are already in the pinned kernel/image.
+
+Two equivalent ways to get it:
+
+```
+# A) Build the ready-made variant (no editing):
+nix build .#sd-image-wifi --out-link result-wifi -L
+
+# B) Or flip enableRtl8822csWifi = true in the EDIT ME block of flake.nix
+#    and build the normal image. Both the SD image and the eMMC system pick it up.
+nix build .#sd-image -L
+```
+
+Use a separate `--out-link` (as above) so the Wi-Fi image doesn't replace your
+existing `result` symlink. Flash it with `nix run .#flash -- /dev/sdX`, pointing
+at the image explicitly if needed:
+
+```
+nix run .#flash -- /dev/sdX result-wifi/sd-image/bpi-m5-nixos.img
+```
+
+This enables **Wi-Fi only**. Bluetooth on that module needs
+`CONFIG_BT_HCIUART_RTL`, which is off in the stock kernel; enabling it would
+require a custom kernel build and is deliberately not included here. The
+overlay has been built and applied to the pinned device tree, but it has not
+been tested on a real board.
 
 ## Part 3: Flash to a microSD card
 
@@ -157,7 +191,7 @@ on boot. A leftover vendor bootloader in the eMMC's hardware boot partitions
 
 ## Known limitations
 
-- **Hardware video decode** needs testing. The pinned 7.3 kernel does include the
+- **Hardware video decode** needs testing. The pinned kernel does include the
   mainline Amlogic VPU driver (`CONFIG_VIDEO_MESON_VDEC`) plus `CONFIG_DRM_MESON`
   and `CONFIG_DRM_PANFROST`, so the kernel-side support is there; what works in
   practice depends on the player and codec, and no media app is configured here.
@@ -168,6 +202,10 @@ on boot. A leftover vendor bootloader in the eMMC's hardware boot partitions
   detection or `dtoverlay=` mechanism, and this image enables no I2C/SPI overlays;
   a HAT that needs those needs a device-tree overlay and extra tooling. Check the
   BPI-M5 pinout and voltages before attaching a Pi HAT.
+- **Onboard RTL8822CS Wi-Fi is opt-in and untested on hardware.** The `-wifi`
+  variant only enables the SDIO controller; the driver and firmware are already
+  present. Bluetooth on that module is not enabled because the stock kernel
+  lacks `CONFIG_BT_HCIUART_RTL` (a custom kernel would be needed).
 - **Warm reboot may hang** on S905X3 boards with an SD card (seen on the Odroid HC4,
   which uses the same SoC; not confirmed on the M5). If it happens, power-cycle
   instead of rebooting.
@@ -195,7 +233,13 @@ nix build .#sd-image -L
 
 `check-image.sh` compares the image's first 440 bytes and sector-1 payload with
 the built `u-boot.bin.sd.bin`, then checks the MBR signature, the partition start
-(sector 16384) and the `@AML` marker. It doesn't touch a card.
+(sector 16384) and the `@AML` marker. It doesn't touch a card. `check.sh` also
+asserts that Wi-Fi is off in the default configs and that the `-wifi` variant's
+device-tree overlay compiles and applies.
+
+If you built the Wi-Fi variant, check its image too:
+`./tests/check-image.sh result-wifi/sd-image/bpi-m5-nixos.img`. The overlay
+itself is validated by `check.sh`.
 
 Hardware checklist:
 
@@ -207,6 +251,9 @@ Hardware checklist:
 4. `sudo poweroff`, remove the SD card, power on. Repeat steps 1–2 and confirm
    `/` is now labelled `nixos` on eMMC.
 5. Note the warm-reboot caveat in "Known limitations"; power-cycle if it hangs.
+6. If you used the `-wifi` image: `dmesg | grep -i rtw`, `ip link` and
+   `nmcli dev wifi list` should show `wlan0` and nearby networks. Bluetooth is
+   not expected to work; report what you see either way.
 
 ## If the build fails
 

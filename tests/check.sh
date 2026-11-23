@@ -45,6 +45,11 @@ eval_bool() {
   out="$(nix eval --raw "${NIX_FLAGS[@]}" --apply 'x: if x then "true" else "false"' "$1" 2>/dev/null)" || die "nix eval failed: $1"
   printf '%s' "$out"
 }
+eval_count() {
+  local out
+  out="$(nix eval --raw "${NIX_FLAGS[@]}" --apply 'x: toString (builtins.length x)' "$1" 2>/dev/null)" || die "nix eval failed: $1"
+  printf '%s' "$out"
+}
 expect_eq "image name" \
   "$(eval_raw ".#nixosConfigurations.${host}-sd.config.image.fileName")" \
   "bpi-m5-nixos.img"
@@ -64,8 +69,19 @@ expect_eq "PasswordAuthentication" \
   "$(eval_bool ".#nixosConfigurations.${host}.config.services.openssh.settings.PasswordAuthentication")" \
   "$want"
 
+# The onboard Wi-Fi support is opt-in and needs no kernel rebuild.
+expect_eq "onboard Wi-Fi off by default" \
+  "$(eval_bool ".#nixosConfigurations.${host}-sd.config.bpiM5.enableRtl8822csWifi")" false
+expect_eq "onboard Wi-Fi in -wifi variant" \
+  "$(eval_bool ".#nixosConfigurations.${host}-sd-wifi.config.bpiM5.enableRtl8822csWifi")" true
+expect_eq "default DT overlays" \
+  "$(eval_count ".#nixosConfigurations.${host}-sd.config.hardware.deviceTree.overlays")" 0
+expect_eq "Wi-Fi DT overlays" \
+  "$(eval_count ".#nixosConfigurations.${host}-sd-wifi.config.hardware.deviceTree.overlays")" 1
+
 echo "==> light builds"
-nix build --no-link "${NIX_FLAGS[@]}" .#uboot-fip .#install-to-emmc
+nix build --no-link "${NIX_FLAGS[@]}" .#uboot-fip .#install-to-emmc \
+  ".#nixosConfigurations.${host}-sd-wifi.config.hardware.deviceTree.package"
 
 echo
 echo "==> All quick checks passed. Next: nix build .#sd-image and ./tests/check-image.sh"
