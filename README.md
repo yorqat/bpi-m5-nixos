@@ -20,6 +20,10 @@ and switch the serial console to `ttyAML0`.
 
 ## Part 0: One-time setup on your x86_64 PC
 
+Builds need an x86_64 Linux host: the Amlogic signing tools are x86_64 binaries,
+and the aarch64 image is built under emulation. On macOS or an ARM machine, use
+an x86_64 Linux VM.
+
 **1. Install Nix and enable flakes** (skip on NixOS, which just needs flakes enabled):
 
 ```
@@ -49,9 +53,6 @@ Open `flake.nix` and edit the block marked `EDIT ME`:
 - Paste your SSH public key into `sshKeys` (recommended).
 - Optionally change `hostName`, `userName` and the first-boot password (the default is `bpi`).
 
-If you put this folder in a git repo, `git add` every file first, because flakes
-ignore untracked files.
-
 ## Part 2: Build
 
 ```
@@ -59,8 +60,11 @@ ignore untracked files.
 ```
 
 Expect 15 to 60+ minutes the first time. When it finishes you'll have
-`out/bpi-m5-nixos.img`. Nix also creates a `flake.lock` file that pins exact
-versions. Keep it if you want repeatable builds.
+`out/bpi-m5-nixos.img`. `flake.lock` is committed and pins exact dependency
+versions; keep it in sync with flake changes for repeatable builds.
+
+`./build.sh` is the canonical build path. The equivalent direct command is
+`nix build .#packages.aarch64-linux.image` (output in `result/`).
 
 ## Part 3: Flash to a microSD card
 
@@ -166,9 +170,8 @@ ls result/
 
 ## One thing worth verifying
 
-The NixOS wiki writes U-Boot into the image with a single `dd` using `u-boot.bin`.
-The upstream U-Boot docs for this board use `u-boot.bin.sd.bin` plus a second
-440-byte write. This project follows the upstream U-Boot docs. If the board
-doesn't boot, compare against the
+This project writes U-Boot the way the upstream docs describe (signed
+`u-boot.bin.sd.bin` at sector 1 plus 440 bytes at the start), not the single-`dd`
+approach on the NixOS wiki. If the board doesn't boot, compare the
 [U-Boot BPI-M5 page](https://docs.u-boot.org/en/latest/board/amlogic/bananapi-m5.html)
-and the wiki.
+with the wiki.

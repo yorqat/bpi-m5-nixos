@@ -95,7 +95,7 @@
       # ---- NixOS modules ----------------------------------------------------
 
       # Settings shared by the SD image and the installed (eMMC) system.
-      commonModule = { lib, pkgs, ... }: {
+      commonModule = { pkgs, ... }: {
         # Serial console on the M5 is ttyAML0 (the stock image uses ttyAMA0).
         boot.kernelParams = lib.mkForce [ "console=ttyAML0,115200n8" "console=tty0" ];
 
@@ -202,7 +202,7 @@
       };
 
       # The live SD card image.
-      sdModule = { config, lib, pkgs, self, ... }: {
+      sdModule = { pkgs, self, ... }: {
         imports = [
           "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
         ];
@@ -267,6 +267,7 @@
         text = ''
           export FLAKE_REF="${self}"
           export HOST_NAME="${hostName}"
+          export USER_NAME="${userName}"
           ${builtins.readFile ./scripts/install-to-emmc.sh}
         '';
       };
