@@ -153,6 +153,11 @@
           /* The M5 base DT clocks SDIO at 24 MHz; 50 MHz (from the M4 DT)
            * makes rtw88 firmware downloads time out on this module. */
           max-frequency = <25000000>;
+          /* SM1's meson-g12-common.dtsi (unlike meson-g12.dtsi) does not set
+           * this on sd_emmc_a. Without it the driver uses descriptor-chain
+           * DMA for SDIO CMD53, which corrupts rtw88 firmware bulk writes
+           * ("invalid fw checksum"). Force the internal-SRAM bounce buffer. */
+          amlogic,dram-access-quirk;
           non-removable;
           disable-wp;
           keep-power-in-suspend;
