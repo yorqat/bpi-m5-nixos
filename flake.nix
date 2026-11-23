@@ -117,13 +117,14 @@
       # dtc cannot turn standalone &{/path} phandle references into overlay
       # fixups, so the phandle numbers are read from the pinned kernel's DTB
       # when this overlay is built. A kernel update therefore can't silently
-      # point at the wrong nodes.
-      rtl8822csDtbo = pkgsSign.runCommand "rtl8822cs-wifi-dtbo" {
-        nativeBuildInputs = with pkgsSign; [ dtc ];
+      # point at the wrong nodes. Built with the aarch64 toolchain so it also
+      # works natively on the board (no x86_64 emulation needed).
+      rtl8822csDtbo = pkgsArm.runCommand "rtl8822cs-wifi-dtbo" {
+        nativeBuildInputs = with pkgsArm; [ dtc ];
       } ''
         dtb="${self.nixosConfigurations."${hostName}".config.boot.kernelPackages.kernel}/dtbs/amlogic/meson-sm1-bananapi-m5.dtb"
 
-        ph() { ${pkgsSign.dtc}/bin/fdtget -t x "$dtb" "$1" phandle; }
+        ph() { ${pkgsArm.dtc}/bin/fdtget -t x "$dtb" "$1" phandle; }
         p_sdio=$(ph /soc/bus@ff600000/bus@34400/pinctrl@40/sdio)
         p_gate=$(ph /soc/bus@ff600000/bus@34400/pinctrl@40/sdio_clk_gate)
         p_3v3=$(ph /regulator-vddao-3v3)
