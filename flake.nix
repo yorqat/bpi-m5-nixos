@@ -150,7 +150,9 @@
           #size-cells = <0>;
 
           bus-width = <4>;
-          max-frequency = <50000000>;
+          /* The M5 base DT clocks SDIO at 24 MHz; 50 MHz (from the M4 DT)
+           * makes rtw88 firmware downloads time out on this module. */
+          max-frequency = <25000000>;
           non-removable;
           disable-wp;
           keep-power-in-suspend;
