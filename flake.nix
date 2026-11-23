@@ -118,8 +118,10 @@
       # fixups, so the phandle numbers are read from the pinned kernel's DTB
       # when this overlay is built. A kernel update therefore can't silently
       # point at the wrong nodes. Built with the aarch64 toolchain so it also
-      # works natively on the board (no x86_64 emulation needed). The module
-      # uses 3.3 V SDIO signaling, so vqmmc follows vmmc.
+      # works natively on the board (no x86_64 emulation needed). This mirrors
+      # mainline's Bananapi SDIO setup: 1.8 V signaling, a power-sequence node
+      # with the module reset line and a 32 kHz ext_clock, and the PWM that
+      # generates that clock. No custom kernel build is involved.
       rtl8822csDtbo = pkgsArm.runCommand "rtl8822cs-wifi-dtbo" {
         nativeBuildInputs = with pkgsArm; [ dtc ];
       } ''
@@ -128,8 +130,12 @@
         ph() { ${pkgsArm.dtc}/bin/fdtget -t x "$dtb" "$1" phandle; }
         p_sdio=$(ph /soc/bus@ff600000/bus@34400/pinctrl@40/sdio)
         p_gate=$(ph /soc/bus@ff600000/bus@34400/pinctrl@40/sdio_clk_gate)
+        p_pwm_e=$(ph /soc/bus@ff600000/bus@34400/pinctrl@40/pwm-e)
+        p_gpio=$(ph /soc/bus@ff600000/bus@34400/pinctrl@40/bank@40)
+        p_pwm=$(ph /soc/bus@ffd00000/pwm@19000)
         p_3v3=$(ph /regulator-vddao-3v3)
-        for p in "$p_sdio" "$p_gate" "$p_3v3"; do
+        p_1v8=$(ph /regulator-vddao-1v8)
+        for p in "$p_sdio" "$p_gate" "$p_pwm_e" "$p_gpio" "$p_pwm" "$p_3v3" "$p_1v8"; do
           [ -n "$p" ] || { echo "ERROR: missing phandle in $dtb"; exit 1; }
         done
 
@@ -139,6 +145,28 @@
 
         / {
           compatible = "bananapi,bpi-m5";
+        };
+
+        &{/} {
+          sdio_pwrseq: sdio-pwrseq {
+            compatible = "mmc-pwrseq-simple";
+            reset-gpios = <0x$p_gpio 71 1>; /* GPIOX_6, active low */
+            clocks = <&wifi32k>;
+            clock-names = "ext_clock";
+          };
+
+          wifi32k: wifi32k {
+            compatible = "pwm-clock";
+            #clock-cells = <0>;
+            clock-frequency = <32768>;
+            pwms = <0x$p_pwm 0 30518 0>; /* PWM_E */
+          };
+        };
+
+        &{/soc/bus@ffd00000/pwm@19000} {
+          status = "okay";
+          pinctrl-0 = <0x$p_pwm_e>;
+          pinctrl-names = "default";
         };
 
         &{/soc/mmc@ffe03000} {
@@ -153,17 +181,13 @@
           /* The M5 base DT clocks SDIO at 24 MHz; 50 MHz (from the M4 DT)
            * makes rtw88 firmware downloads time out on this module. */
           max-frequency = <25000000>;
-          /* SM1's meson-g12-common.dtsi (unlike meson-g12.dtsi) does not set
-           * this on sd_emmc_a. Without it the driver uses descriptor-chain
-           * DMA for SDIO CMD53, which corrupts rtw88 firmware bulk writes
-           * ("invalid fw checksum"). Force the internal-SRAM bounce buffer. */
-          amlogic,dram-access-quirk;
           non-removable;
           disable-wp;
           keep-power-in-suspend;
 
+          mmc-pwrseq = <&sdio_pwrseq>;
           vmmc-supply = <0x$p_3v3>;
-          vqmmc-supply = <0x$p_3v3>;
+          vqmmc-supply = <0x$p_1v8>;
 
           wifi@1 {
             reg = <1>;
