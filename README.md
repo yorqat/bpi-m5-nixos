@@ -1,10 +1,13 @@
 # NixOS for the Banana Pi BPI-M5
 
-Builds a flashable NixOS SD-card image (`out/bpi-m5-nixos.img`) for the BPI-M5
-(Amlogic S905X3). It automates the manual steps from the
+Builds a flashable NixOS SD-card image for the BPI-M5 (Amlogic S905X3) with
+`nix build .#sd-image`, flashes it with `nix run .#flash -- /dev/sdX`, and
+installs it to eMMC with `nix run .#install-to-emmc` on the board. It automates
+the manual steps from the
 [NixOS wiki page](https://wiki.nixos.org/wiki/NixOS_on_ARM/Banana_Pi_BPI-M5):
 build mainline U-Boot, sign it with Amlogic's tools, embed it in the NixOS image,
-and switch the serial console to `ttyAML0`.
+and switch the serial console to `ttyAML0`. The shell scripts in this repo are
+thin convenience wrappers around those flake commands.
 
 > **Status: build verified, hardware untested.** `nix flake check --all-systems`
 > passes and both the SD image and installer build on x86_64 Linux. Booting on a
@@ -14,10 +17,10 @@ and switch the serial console to `ttyAML0`.
 
 | File | What it does |
 | --- | --- |
-| `flake.nix` | Defines U-Boot, the signing step, and the NixOS system/image |
-| `build.sh` | Checks your setup, builds, copies the image to `out/` |
-| `flash.sh`, `scripts/flash-body.sh` | Writes the image to an SD card with safety checks; also backs `nix run .#flash` |
-| `scripts/install-to-emmc.sh` | The eMMC installer, wrapped by the flake as `nix run .#install-to-emmc` |
+| `flake.nix` | Defines U-Boot, the signing step, the NixOS systems, and the flake commands |
+| `build.sh` | Convenience wrapper for `nix build .#sd-image`; copies the result to `out/` |
+| `flash.sh`, `scripts/flash-body.sh` | Convenience wrapper and shared body for `nix run .#flash` |
+| `scripts/install-to-emmc.sh` | Backs `nix run .#install-to-emmc` |
 | `scripts/common.sh`, `scripts/bootloader.sh` | Shared disk guards and the single bootloader layout definition |
 
 ## Part 0: One-time setup on your Linux PC
@@ -62,28 +65,28 @@ Open `flake.nix` and edit the block marked `EDIT ME`:
 ## Part 2: Build
 
 ```
-./build.sh
+nix build .#sd-image -L
 ```
 
-Expect 15 to 60+ minutes the first time. When it finishes you'll have
-`out/bpi-m5-nixos.img`. `flake.lock` is committed and pins exact dependency
-versions; keep it in sync with flake changes for repeatable builds.
+The image is at `result/sd-image/bpi-m5-nixos.img`. Expect 15 to 60+ minutes the
+first time. `flake.lock` is committed and pins exact dependency versions; keep it
+in sync with flake changes for repeatable builds.
 
-`./build.sh` is the canonical build path. The equivalent direct command is
-`nix build .#sd-image` (output in `result/`). No architecture appears in either
-command; the flake defines the same outputs on every supported Linux host.
-`nix flake check --all-systems` validates both host outputs.
+No architecture appears in the command: the flake defines the same outputs on
+every supported Linux host. `nix flake check --all-systems` validates them all.
+If you prefer a copy in `out/bpi-m5-nixos.img`, run `./build.sh` instead — it
+calls the same build.
 
 ## Part 3: Flash to a microSD card
 
 ```
-./flash.sh              # shows your disks
-./flash.sh /dev/sdX     # replace sdX with the SD card
+nix run .#flash --              # shows your disks
+nix run .#flash -- /dev/sdX     # replace sdX with the SD card
 ```
 
-The same tool is available as a flake app: `nix run .#flash -- /dev/sdX`. It uses
-the image built by the flake (building it first if needed), so it works from any
-directory.
+The app uses the image built by the flake (building it first if needed), so it
+works from any directory and you don't need a local `out/` copy. `./flash.sh
+/dev/sdX` is a wrapper for the same tool if you prefer the raw script.
 
 It refuses mounted disks and makes you retype the device path before writing.
 Prefer **microSD, not the board's eMMC**, for the first attempt: pulling the card
@@ -113,13 +116,14 @@ ssh bpi@BOARD-IP
 **2. Run the installer on the board** (needs Ethernet; it downloads a lot):
 
 ```
-install-to-emmc
+cd /bpi-m5-nixos
+sudo nix run .#install-to-emmc
 ```
 
-That is a shortcut for `cd /bpi-m5-nixos && sudo nix run .#install-to-emmc`.
-It finds the eMMC by itself, shows you the disk, and makes you retype the device
-path before erasing anything. Everything on the eMMC (Android or any old Linux)
-is wiped. It then:
+The SD image also installs an `install-to-emmc` shortcut that does this for you,
+including the `sudo`. The installer finds the eMMC by itself, shows you the disk,
+and makes you retype the device path before erasing anything. Everything on the
+eMMC (Android or any old Linux) is wiped. It then:
 
 1. Partitions and formats the eMMC (one ext4 partition labelled `nixos`).
 2. Copies the working bootloader from the SD card you booted from, and verifies
@@ -129,7 +133,7 @@ is wiped. It then:
 4. Leaves a copy of the flake on the new system at `/etc/bpi-m5-nixos`.
 
 If the board has more than one eMMC-like device, or you want to be explicit:
-`install-to-emmc -- /dev/mmcblk0`
+`sudo nix run .#install-to-emmc -- /dev/mmcblk0`
 
 **3. Switch over:** `sudo poweroff`, take the **SD card out**, and power the board
 on again. The chip's boot ROM prefers eMMC over SD, so it boots NixOS from the
