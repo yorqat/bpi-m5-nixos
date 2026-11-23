@@ -207,18 +207,14 @@
           "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
         ];
 
-        sdImage = {
-          imageName = "bpi-m5-nixos.img";
-          compressImage = false; # plain .img you can dd directly
+        image.fileName = "bpi-m5-nixos.img";
+        sdImage.compressImage = false; # plain .img you can dd directly
 
-          # Write the signed U-Boot into the image, as the upstream U-Boot docs
-          # describe (sectors 1+, plus 440 bytes of boot code at the very start
-          # that leaves the partition table alone).
-          postBuildCommands = lib.mkAfter ''
-            dd if=${uboot-fip}/u-boot.bin.sd.bin of=$img conv=fsync,notrunc bs=512 skip=1 seek=1
-            dd if=${uboot-fip}/u-boot.bin.sd.bin of=$img conv=fsync,notrunc bs=1 count=440
-          '';
-        };
+        # The layout lives in scripts/bootloader.sh, shared with the installer.
+        sdImage.postBuildCommands = lib.mkAfter ''
+          ${builtins.readFile ./scripts/bootloader.sh}
+          write_bootloader "${uboot-fip}/u-boot.bin.sd.bin" "$img"
+        '';
 
         environment.systemPackages = with pkgs; [
           (writeShellScriptBin "install-to-emmc" ''
@@ -268,8 +264,10 @@
           export FLAKE_REF="${self}"
           export HOST_NAME="${hostName}"
           export USER_NAME="${userName}"
-          ${builtins.readFile ./scripts/install-to-emmc.sh}
-        '';
+        ''
+        + builtins.readFile ./scripts/common.sh
+        + builtins.readFile ./scripts/bootloader.sh
+        + builtins.readFile ./scripts/install-to-emmc.sh;
       };
     in
     {

@@ -1,13 +1,13 @@
 # install-to-emmc: install this flake's NixOS onto the BPI-M5's eMMC.
 # Run it on the board while it is booted from the SD card:
 #
-#     sudo nix run .#install-to-emmc              # auto-detects the eMMC
-#     sudo nix run .#install-to-emmc -- /dev/mmcblk0   # or name it yourself
+#     install-to-emmc                            # shortcut on the SD image
+#     sudo nix run .#install-to-emmc              # or run the flake app directly
+#     sudo nix run .#install-to-emmc -- /dev/mmcblk0   # name the eMMC yourself
 #
-# The flake wraps this file (flake.nix, 'install-to-emmc') and provides the tools
-# plus FLAKE_REF and HOST_NAME. It is not meant to be executed directly.
-
-die() { echo "ERROR: $*" >&2; exit 1; }
+# The flake wraps this file (flake.nix, 'install-to-emmc'), prepends the shared
+# scripts/common.sh and scripts/bootloader.sh, and provides the tools plus
+# FLAKE_REF, HOST_NAME and USER_NAME. It is not meant to be executed directly.
 
 [ "$(id -u)" -eq 0 ] || die "Run as root:  sudo nix run .#install-to-emmc"
 : "${FLAKE_REF:?}" "${HOST_NAME:?}"
@@ -41,8 +41,7 @@ else
   EMMC="${found[0]}"
 fi
 
-[ -b "$EMMC" ] || die "$EMMC is not a block device."
-[ "$(lsblk -ndo TYPE "$EMMC")" = "disk" ] || die "$EMMC is a partition; give the whole disk."
+require_disk "$EMMC"
 
 root_src="$(findmnt -no SOURCE /)" || die "Can't tell what / is mounted from."
 [ -b "$root_src" ] || die "Can't tell which device the running system is on (got: $root_src)."
@@ -52,10 +51,6 @@ BOOT_DEV="/dev/$pk"
 
 [ "$BOOT_DEV" != "$EMMC" ] || die "You are running from $EMMC itself. Boot from the SD card to install onto the eMMC."
 
-if lsblk -nr -o MOUNTPOINT "$EMMC" | grep -q .; then
-  die "$EMMC has mounted partitions. Unmount them first."
-fi
-
 getent hosts cache.nixos.org >/dev/null || die "No network (can't resolve cache.nixos.org). Plug in Ethernet and try again."
 
 echo "Running from : $BOOT_DEV"
@@ -64,8 +59,7 @@ echo
 lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL "$EMMC"
 echo
 echo "Everything on $EMMC will be ERASED (any Android/Linux already there included)."
-read -r -p "Type the device path to confirm ($EMMC): " answer
-[ "$answer" = "$EMMC" ] || die "Confirmation did not match. Nothing was changed."
+confirm_disk "$EMMC"
 
 # ---- 2. Partition and format the eMMC ---------------------------------------
 echo
@@ -90,20 +84,13 @@ wipefs -a "$PART" >/dev/null
 mkfs.ext4 -q -F -L nixos "$PART"
 
 # ---- 3. Copy the bootloader from the SD card we booted from -----------------
-# Same layout the image uses: 440 bytes of boot code at the very start, and the
-# signed U-Boot from sector 1. Done AFTER partitioning so the table is kept.
+# Layout from scripts/bootloader.sh. Done AFTER partitioning so the table is kept.
 echo "==> Copying the bootloader from $BOOT_DEV to $EMMC"
-dd if="$BOOT_DEV" of="$EMMC" bs=512 skip=1 seek=1 count=8191 conv=fsync,notrunc status=none
-dd if="$BOOT_DEV" of="$EMMC" bs=1 count=440 conv=fsync,notrunc status=none
-blockdev --flushbufs "$BOOT_DEV" "$EMMC" || true
+write_bootloader "$BOOT_DEV" "$EMMC"
 
 echo "==> Verifying the bootloader copy"
-cmp <(dd if="$BOOT_DEV" bs=512 skip=1 count=8191 iflag=direct status=none) \
-    <(dd if="$EMMC" bs=512 skip=1 count=8191 iflag=direct status=none) \
-  || die "Bootloader verification failed (sectors 1+). Do not reboot into the eMMC; rerun this."
-cmp -n 440 <(dd if="$BOOT_DEV" bs=512 count=1 iflag=direct status=none) \
-           <(dd if="$EMMC" bs=512 count=1 iflag=direct status=none) \
-  || die "Bootloader verification failed (boot code). Do not reboot into the eMMC; rerun this."
+verify_bootloader "$BOOT_DEV" "$EMMC" \
+  || die "Bootloader verification failed. Do not reboot into the eMMC; rerun this."
 
 # ---- 4. Install NixOS from the flake ----------------------------------------
 mkdir -p "$ROOT"
@@ -132,15 +119,16 @@ chown -R ${USER_NAME}:${USER_NAME} "$ROOT/etc/bpi-m5-nixos" 2>/dev/null || true
 
 # Optional: drop a quick note for the user
 mkdir -p "$ROOT/etc/motd.d"
-cat > "$ROOT/etc/motd.d/99-bpi-m5" <<'EOF'
+cat > "$ROOT/etc/motd.d/99-bpi-m5" <<EOF
 NixOS installed from bpi-m5-nixos flake
-Rebuild: nh os switch /etc/bpi-m5-nixos  (or sudo nixos-rebuild switch --flake /etc/bpi-m5-nixos#bpi-m5)
+Rebuild: nh os switch /etc/bpi-m5-nixos
 Copy edits from PC: rsync -av flake.nix scripts/ user@board:/etc/bpi-m5-nixos/
 EOF
 chmod 644 "$ROOT/etc/motd.d/99-bpi-m5" 2>/dev/null || true
 
 # ---- 5. Finish --------------------------------------------------------------
 cleanup
+trap - EXIT
 sync
 umount -R "$ROOT"
 

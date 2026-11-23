@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Builds a flashable NixOS image for the Banana Pi BPI-M5 -> out/bpi-m5-nixos.img
+# Builds the flashable NixOS SD image for the Banana Pi BPI-M5 into out/
 set -euo pipefail
 cd "$(dirname "$0")"
 
-die() { echo "ERROR: $*" >&2; exit 1; }
+source scripts/common.sh
 
 command -v nix >/dev/null 2>&1 || die "Nix is not installed. See README.md, 'Part 0'."
 
@@ -18,17 +18,10 @@ fi
 cfg="$(nix "${NIX_FLAGS[@]}" config show 2>/dev/null || nix show-config 2>/dev/null || true)"
 if ! grep -Eq '^extra-platforms.*aarch64-linux' <<<"$cfg"; then
   cat >&2 <<'EOF'
-ERROR: Your Nix isn't set up to build aarch64 (ARM) packages.
-
-  On NixOS, add this to your configuration.nix and rebuild:
-      boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
-
-  On other Linux distros:
-      sudo apt install qemu-user-static binfmt-support     # (or your distro's equivalent)
-      echo 'extra-platforms = aarch64-linux' | sudo tee -a /etc/nix/nix.conf
-      sudo systemctl restart nix-daemon
-
-See README.md, 'Part 0', then run this script again.
+ERROR: Your Nix can't run aarch64 (ARM) programs yet.
+  NixOS: boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
+  Other distros: qemu-user-static + extra-platforms = aarch64-linux.
+  See README.md, 'Part 0', for the exact commands, then rerun this script.
 EOF
   exit 1
 fi
@@ -39,14 +32,16 @@ nix "${NIX_FLAGS[@]}" build .#packages.aarch64-linux.image -L --out-link result-
 
 img="$(find -L result-image/sd-image -maxdepth 1 -name '*.img' | head -n1)"
 [ -n "$img" ] || die "Build finished but no .img was found in result-image/sd-image/"
+img_name="$(basename "$img")"
 
 mkdir -p out
-cp --no-preserve=mode "$img" out/bpi-m5-nixos.img
+out_img="out/$img_name"
+cp --no-preserve=mode "$img" "$out_img"
 
 echo
-echo "==> Done: $(pwd)/out/bpi-m5-nixos.img"
-ls -lh out/bpi-m5-nixos.img
-sha256sum out/bpi-m5-nixos.img
+echo "==> Done: $(pwd)/$out_img"
+ls -lh "$out_img"
+sha256sum "$out_img"
 echo
 echo "Next: insert a microSD card and run   ./flash.sh /dev/sdX"
 echo "(run 'lsblk' to find the right device - flash.sh will also show you the list)"

@@ -8,10 +8,10 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-die() { echo "ERROR: $*" >&2; exit 1; }
+source scripts/common.sh
 
 DEV=""
-IMG="out/bpi-m5-nixos.img"
+IMG=""
 VERIFY=1
 pos=0
 for arg in "$@"; do
@@ -25,6 +25,15 @@ for arg in "$@"; do
   esac
 done
 
+if [ -z "$IMG" ]; then
+  mapfile -t imgs < <(find out -maxdepth 1 -type f -name '*.img' 2>/dev/null | sort)
+  case "${#imgs[@]}" in
+    1) IMG="${imgs[0]}" ;;
+    0) die "No image found in out/ (run ./build.sh first), or pass an image path." ;;
+    *) die "Several images in out/; pass the image path explicitly." ;;
+  esac
+fi
+
 if [ -z "$DEV" ]; then
   echo "Usage: $0 /dev/sdX [image] [--no-verify]"
   echo
@@ -34,9 +43,7 @@ if [ -z "$DEV" ]; then
 fi
 
 [ -f "$IMG" ] || die "Image not found: $IMG  (run ./build.sh first)"
-[ -b "$DEV" ] || die "$DEV is not a block device."
-[ "$(lsblk -ndo TYPE "$DEV")" = "disk" ] \
-  || die "$DEV is a partition. Give the whole disk, e.g. /dev/sdb, not /dev/sdb1."
+require_disk "$DEV"
 
 img_size="$(stat -c%s "$IMG")"
 dev_size="$(lsblk -bndo SIZE "$DEV")"
@@ -46,16 +53,6 @@ dev_size="$(lsblk -bndo SIZE "$DEV")"
   || die "$DEV reports 0 bytes. The reader can't see the card. Reseat it or try another reader/port."
 [ "$dev_size" -ge "$img_size" ] \
   || die "$DEV is smaller ($dev_size bytes) than the image ($img_size bytes)."
-
-# Refuse anything with mounted partitions. This also protects your system disk.
-mounted="$(lsblk -nr -o MOUNTPOINT "$DEV" | grep -v '^$' || true)"
-if [ -n "$mounted" ]; then
-  echo "ERROR: $DEV has mounted partitions:" >&2
-  echo "$mounted" >&2
-  echo "If this really is your SD card, unmount them first:  sudo umount ${DEV}*" >&2
-  echo "If it is NOT your SD card, good thing this check exists." >&2
-  exit 1
-fi
 
 echo "About to ERASE EVERYTHING on this device:"
 echo
@@ -67,8 +64,7 @@ fi
 echo
 echo "Image: $IMG ($(du -h "$IMG" | cut -f1))"
 echo
-read -r -p "Type the device path again to confirm ($DEV): " answer
-[ "$answer" = "$DEV" ] || die "Confirmation did not match. Nothing was written."
+confirm_disk "$DEV"
 
 SUDO=""
 if [ "$(id -u)" -ne 0 ]; then

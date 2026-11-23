@@ -17,6 +17,7 @@ and switch the serial console to `ttyAML0`.
 | `build.sh` | Checks your setup, builds, copies the image to `out/` |
 | `flash.sh` | Writes the image to an SD card with safety checks and verification |
 | `scripts/install-to-emmc.sh` | The eMMC installer, wrapped by the flake as `nix run .#install-to-emmc` |
+| `scripts/common.sh`, `scripts/bootloader.sh` | Shared disk guards and the single bootloader layout definition |
 
 ## Part 0: One-time setup on your x86_64 PC
 
@@ -88,27 +89,23 @@ gets you back to the original eMMC system.
 
 ## Part 5: Install from the SD card to the eMMC
 
-Do this once you've booted the SD card and can log in. The installer is a flake
-app, so there's nothing to install on the board first.
+Do this once you've booted the SD card and can log in. The flake that built the
+image is already on the card at `/bpi-m5-nixos`, so there's nothing to install or
+copy to the board first.
 
-**1. Copy the flake to the board** (from your PC, in the project folder; replace
-`BOARD-IP`). Don't copy `out/`: it holds the 3.7 GB image.
+**1. Log in to the board** (from your PC; replace `BOARD-IP`):
 
 ```
-ssh bpi@BOARD-IP 'mkdir -p ~/bpi-m5'
-scp -r flake.nix flake.lock scripts bpi@BOARD-IP:bpi-m5/
+ssh bpi@BOARD-IP
 ```
-
-Copy `flake.lock` too, so the board uses the same nixpkgs version as your PC.
 
 **2. Run the installer on the board** (needs Ethernet; it downloads a lot):
 
 ```
-ssh bpi@BOARD-IP
-cd ~/bpi-m5
-sudo nix run .#install-to-emmc
+install-to-emmc
 ```
 
+That is a shortcut for `cd /bpi-m5-nixos && sudo nix run .#install-to-emmc`.
 It finds the eMMC by itself, shows you the disk, and makes you retype the device
 path before erasing anything. Everything on the eMMC (Android or any old Linux)
 is wiped. It then:
@@ -121,7 +118,7 @@ is wiped. It then:
 4. Leaves a copy of the flake on the new system at `/etc/bpi-m5-nixos`.
 
 If the board has more than one eMMC-like device, or you want to be explicit:
-`sudo nix run .#install-to-emmc -- /dev/mmcblk0`
+`install-to-emmc -- /dev/mmcblk0`
 
 **3. Switch over:** `sudo poweroff`, take the **SD card out**, and power the board
 on again. The chip's boot ROM prefers eMMC over SD, so it boots NixOS from the
@@ -132,6 +129,8 @@ eMMC.
 ```
 sudo nixos-rebuild switch --flake /etc/bpi-m5-nixos#bpi-m5
 ```
+
+(`bpi-m5` is the default `hostName` in `flake.nix`; use yours if you changed it.)
 
 If the board won't boot from the eMMC, put the SD card back in. Then check that the
 installer printed no errors, and tell whoever is helping you what the board does
