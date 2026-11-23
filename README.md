@@ -47,7 +47,7 @@ runs ARM tools under emulation.
 Open `flake.nix` and edit the block marked `EDIT ME`:
 
 - Paste your SSH public key into `sshKeys` (recommended).
-- Optionally change `hostName`, `userName` and the first-boot password.
+- Optionally change `hostName`, `userName` and the first-boot password (the default is `bpi`).
 
 If you put this folder in a git repo, `git add` every file first, because flakes
 ignore untracked files.
@@ -77,7 +77,7 @@ gets you back to the original eMMC system.
 
 - Insert the card, connect Ethernet (and HDMI or a 3.3V USB serial adapter at
   115200 baud), power on. The first boot expands the root partition.
-- Log in as `bpi` (password `changeme` unless you changed it), or SSH in using the
+- Log in as `bpi` (password `bpi` unless you changed it), or SSH in using the
   IP address from your router. Change the password with `passwd`.
 - The SD card is a live system. To make NixOS permanent, install it to the eMMC
   (Part 5).
