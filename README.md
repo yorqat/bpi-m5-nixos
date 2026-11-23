@@ -157,8 +157,17 @@ on boot. A leftover vendor bootloader in the eMMC's hardware boot partitions
 
 ## Known limitations
 
-- **Hardware video decode** is only partly supported in mainline Linux. Don't
-  expect it to be a good media box.
+- **Hardware video decode** needs testing. The pinned 7.3 kernel does include the
+  mainline Amlogic VPU driver (`CONFIG_VIDEO_MESON_VDEC`) plus `CONFIG_DRM_MESON`
+  and `CONFIG_DRM_PANFROST`, so the kernel-side support is there; what works in
+  practice depends on the player and codec, and no media app is configured here.
+  Software decode works. Don't expect it to be a good media box out of the box.
+- **GPIO / HATs:** the mainline device tree names the 40-pin header lines
+  (`CON1-Pxx`), so digital GPIO is available through `/dev/gpiochip*` (install
+  `libgpiod` for the `gpio*` tools). There is no Raspberry-Pi-style HAT EEPROM
+  detection or `dtoverlay=` mechanism, and this image enables no I2C/SPI overlays;
+  a HAT that needs those needs a device-tree overlay and extra tooling. Check the
+  BPI-M5 pinout and voltages before attaching a Pi HAT.
 - **Warm reboot may hang** on S905X3 boards with an SD card (seen on the Odroid HC4,
   which uses the same SoC; not confirmed on the M5). If it happens, power-cycle
   instead of rebooting.
