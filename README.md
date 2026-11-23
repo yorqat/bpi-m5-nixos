@@ -9,9 +9,11 @@ build mainline U-Boot, sign it with Amlogic's tools, embed it in the NixOS image
 and switch the serial console to `ttyAML0`. The shell scripts in this repo are
 thin convenience wrappers around those flake commands.
 
-> **Status: build verified, hardware untested.** `nix flake check --all-systems`
-> passes and both the SD image and installer build on x86_64 Linux. Booting on a
-> real BPI-M5 is still unverified. See "If the build fails".
+> **Status: build verified, eMMC boot verified over SSH.** `nix flake check --all-systems`
+> passes, SD image and installer build on x86_64 Linux, and a real BPI-M5 booted from eMMC
+> (`/` on `mmcblk1p1`, `systemctl is-system-running: running`, zram/avahi/earlyoom up).
+> Remaining unverified: HDMI/serial console workflow, warm reboot behavior, RTL8822CS overlay,
+> and media decode quality. See "If the build fails".
 
 ## Files
 
