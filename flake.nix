@@ -118,7 +118,8 @@
       # fixups, so the phandle numbers are read from the pinned kernel's DTB
       # when this overlay is built. A kernel update therefore can't silently
       # point at the wrong nodes. Built with the aarch64 toolchain so it also
-      # works natively on the board (no x86_64 emulation needed).
+      # works natively on the board (no x86_64 emulation needed). The module
+      # uses 3.3 V SDIO signaling, so vqmmc follows vmmc.
       rtl8822csDtbo = pkgsArm.runCommand "rtl8822cs-wifi-dtbo" {
         nativeBuildInputs = with pkgsArm; [ dtc ];
       } ''
@@ -128,8 +129,7 @@
         p_sdio=$(ph /soc/bus@ff600000/bus@34400/pinctrl@40/sdio)
         p_gate=$(ph /soc/bus@ff600000/bus@34400/pinctrl@40/sdio_clk_gate)
         p_3v3=$(ph /regulator-vddao-3v3)
-        p_1v8=$(ph /regulator-vddao-1v8)
-        for p in "$p_sdio" "$p_gate" "$p_3v3" "$p_1v8"; do
+        for p in "$p_sdio" "$p_gate" "$p_3v3"; do
           [ -n "$p" ] || { echo "ERROR: missing phandle in $dtb"; exit 1; }
         done
 
@@ -158,7 +158,7 @@
           keep-power-in-suspend;
 
           vmmc-supply = <0x$p_3v3>;
-          vqmmc-supply = <0x$p_1v8>;
+          vqmmc-supply = <0x$p_3v3>;
 
           wifi@1 {
             reg = <1>;
