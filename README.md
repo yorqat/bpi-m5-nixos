@@ -84,38 +84,15 @@ calls the same build.
 
 ### Optional: onboard Wi-Fi (BPI-RT8822CS)
 
-If your M5 has the small Realtek RTL8822CS mezzanine fitted, the stock image
-does not use it: mainline leaves the SDIO controller disabled. Wi-Fi can be
-enabled with a device-tree overlay only — **no kernel rebuild** — because the
-`rtw88_8822cs` driver and firmware are already in the pinned kernel/image.
+<details>
+<summary>RTL8822CS mezzanine (Wi‑Fi opt-in, module BT unsupported)</summary>
 
-Two equivalent ways to get it:
+- Enable via `enableRtl8822csWifi = true` in `flake.nix`, or build the variant: `nix build .#sd-image-wifi --out-link result-wifi -L`.
+- Flash: `nix run .#flash -- /dev/sdX result-wifi/sd-image/bpi-m5-nixos.img`.
+- Wi‑Fi uses `rtw88_8822cs` (driver/firmware already in image); appears as `wlan0`. DT overlay only, no kernel rebuild.
+- USB BT dongles work in both builds; module BT needs `CONFIG_BT_HCIUART_RTL` (not in stock kernel). Build-verified, not hardware-tested.
 
-```
-# A) Build the ready-made variant (no editing):
-nix build .#sd-image-wifi --out-link result-wifi -L
-
-# B) Or flip enableRtl8822csWifi = true in the EDIT ME block of flake.nix
-#    and build the normal image. Both the SD image and the eMMC system pick it up.
-nix build .#sd-image -L
-```
-
-Use a separate `--out-link` (as above) so the Wi-Fi image doesn't replace your
-existing `result` symlink. Flash it with `nix run .#flash -- /dev/sdX`, pointing
-at the image explicitly if needed:
-
-```
-nix run .#flash -- /dev/sdX result-wifi/sd-image/bpi-m5-nixos.img
-```
-
-Bluetooth, plainly:
-
-- A **USB Bluetooth dongle** works in both builds.
-- The **module's Bluetooth** does not work in either build: it needs
-  `CONFIG_BT_HCIUART_RTL`, which is off in the stock kernel (custom kernel required).
-- `wl0`/`wl1` are vendor-image names; here Wi‑Fi will be `wlan0`.
-
-The overlay is build-verified, not hardware-tested.
+</details>
 
 ## Part 3: Flash to a microSD card
 
