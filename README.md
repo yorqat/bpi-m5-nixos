@@ -15,15 +15,16 @@ and switch the serial console to `ttyAML0`.
 | --- | --- |
 | `flake.nix` | Defines U-Boot, the signing step, and the NixOS system/image |
 | `build.sh` | Checks your setup, builds, copies the image to `out/` |
-| `flash.sh` | Writes the image to an SD card with safety checks and verification |
+| `flash.sh`, `scripts/flash-body.sh` | Writes the image to an SD card with safety checks; also backs `nix run .#flash` |
 | `scripts/install-to-emmc.sh` | The eMMC installer, wrapped by the flake as `nix run .#install-to-emmc` |
 | `scripts/common.sh`, `scripts/bootloader.sh` | Shared disk guards and the single bootloader layout definition |
 
-## Part 0: One-time setup on your x86_64 PC
+## Part 0: One-time setup on your Linux PC
 
-Builds need an x86_64 Linux host: the Amlogic signing tools are x86_64 binaries,
-and the aarch64 image is built under emulation. On macOS or an ARM machine, use
-an x86_64 Linux VM.
+The signing tools are x86_64 binaries, so the normal build host is x86_64 Linux.
+An aarch64 Linux host also works if it can run x86_64 binaries (binfmt +
+`extra-platforms = x86_64-linux`, or a remote x86_64 builder). macOS needs an
+x86_64 Linux VM — the commands are the same on any supported host.
 
 **1. Install Nix and enable flakes** (skip on NixOS, which just needs flakes enabled):
 
@@ -65,7 +66,8 @@ Expect 15 to 60+ minutes the first time. When it finishes you'll have
 versions; keep it in sync with flake changes for repeatable builds.
 
 `./build.sh` is the canonical build path. The equivalent direct command is
-`nix build .#packages.aarch64-linux.image` (output in `result/`).
+`nix build .#sd-image` (output in `result/`). No architecture appears in either
+command; the flake defines the same outputs on every supported Linux host.
 
 ## Part 3: Flash to a microSD card
 
@@ -73,6 +75,9 @@ versions; keep it in sync with flake changes for repeatable builds.
 ./flash.sh              # shows your disks
 ./flash.sh /dev/sdX     # replace sdX with the SD card
 ```
+
+The same tool is available as a flake app: `nix run .#flash -- /dev/sdX`. It uses
+the image built by the flake, so it works from any directory.
 
 It refuses mounted disks and makes you retype the device path before writing.
 Prefer **microSD, not the board's eMMC**, for the first attempt: pulling the card

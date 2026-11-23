@@ -30,27 +30,34 @@
 
       lib = nixpkgs.lib;
 
-      # The machine you build on. The Amlogic signing tools are x86_64-only binaries.
-      buildHost = "x86_64-linux";
-      pkgsHost = nixpkgs.legacyPackages.${buildHost};
-      pkgsArm = nixpkgs.legacyPackages.aarch64-linux;
+      # Commands stay architecture-free: nix resolves .#name against the local
+      # system, so define the same outputs for every Linux host we support.
+      systems = [ "x86_64-linux" "aarch64-linux" ];
+      eachSystem = f: lib.listToAttrs (map (s: { name = s; value = f s; }) systems);
+      pkgsFor = s: nixpkgs.legacyPackages.${s};
+
+      # Amlogic's signing tools are x86_64 binaries, so FIP packaging always
+      # builds on an x86_64 builder. On an aarch64 host that needs x86_64
+      # emulation (binfmt + extra-platforms) or a remote x86_64 builder.
+      pkgsSign = pkgsFor "x86_64-linux";
+      pkgsArm = pkgsFor "aarch64-linux";
 
       # ---- Bootloader (built on your PC) ------------------------------------
 
       # Mainline U-Boot, cross-compiled for the M5 (no signing yet).
-      uboot-raw = pkgsHost.pkgsCross.aarch64-multiplatform.buildUBoot {
+      uboot-raw = pkgsSign.pkgsCross.aarch64-multiplatform.buildUBoot {
         defconfig = "bananapi-m5_defconfig";
         extraMeta.platforms = [ "aarch64-linux" ];
         filesToInstall = [ "u-boot.bin" ];
       };
 
       # U-Boot wrapped in Amlogic's signed boot package (FIP).
-      uboot-fip = pkgsHost.stdenv.mkDerivation {
+      uboot-fip = pkgsSign.stdenv.mkDerivation {
         pname = "uboot-bananapi-m5-fip";
         version = "git";
         src = amlogic-boot-fip;
 
-        nativeBuildInputs = with pkgsHost; [ python3 gnumake patchelf util-linux ];
+        nativeBuildInputs = with pkgsSign; [ python3 gnumake patchelf util-linux ];
 
         dontConfigure = true;
         dontFixup = true;
@@ -64,7 +71,7 @@
           # Amlogic's signing tools are prebuilt x86_64 binaries; point them at
           # Nix's dynamic linker/libs so they can run.
           interp="$(cat $NIX_CC/nix-support/dynamic-linker)"
-          rpath="${pkgsHost.lib.makeLibraryPath [ pkgsHost.stdenv.cc.cc.lib pkgsHost.zlib ]}"
+          rpath="${pkgsSign.lib.makeLibraryPath [ pkgsSign.stdenv.cc.cc.lib pkgsSign.zlib ]}"
           for f in $(find . -type f -name 'aml_encrypt_*'); do
             chmod +x "$f"
             patchelf --set-interpreter "$interp" --set-rpath "$rpath" "$f" \
@@ -269,6 +276,21 @@
         + builtins.readFile ./scripts/bootloader.sh
         + builtins.readFile ./scripts/install-to-emmc.sh;
       };
+
+      # The SD image is an aarch64 derivation, but store paths are global, so it
+      # can be exposed as a normal package on any supported host system.
+      sdImage = self.nixosConfigurations."${hostName}-sd".config.system.build.sdImage;
+
+      # Host-side flashing app. The image is baked in so it works from any cwd.
+      flashFor = s: (pkgsFor s).writeShellApplication {
+        name = "flash";
+        runtimeInputs = with (pkgsFor s); [ coreutils diffutils findutils gnugrep util-linux ];
+        text = ''
+          FLASH_IMAGE_DEFAULT="${sdImage}/sd-image"
+        ''
+        + builtins.readFile ./scripts/common.sh
+        + builtins.readFile ./scripts/flash-body.sh;
+      };
     in
     {
       # The system to install on the eMMC (also what you `nixos-rebuild switch`).
@@ -284,40 +306,47 @@
         modules = [ commonModule sdModule ];
       };
 
-      # Built on your PC:  nix build .#uboot-fip
-      packages.${buildHost} = {
+      # nix build .#sd-image  /  .#uboot-fip  (no system in the command)
+      packages = eachSystem (_: {
+        default = sdImage;
+        sd-image = sdImage;
         inherit uboot-raw uboot-fip;
-        default = uboot-fip;
-      };
+      });
 
-      packages.aarch64-linux = {
-        # The SD image:  nix build .#packages.aarch64-linux.image
-        image = self.nixosConfigurations."${hostName}-sd".config.system.build.sdImage;
-        inherit install-to-emmc;
-      };
+      # nix run .#flash -- /dev/sdX  on any supported host;
+      # nix run .#install-to-emmc  only runs on the board (aarch64).
+      apps = eachSystem (s:
+        {
+          flash = {
+            type = "app";
+            program = "${flashFor s}/bin/flash";
+            meta.description = "Write the SD image to a microSD card";
+          };
+        } // lib.optionalAttrs (s == "aarch64-linux") {
+          install-to-emmc = {
+            type = "app";
+            program = "${install-to-emmc}/bin/install-to-emmc";
+            meta.description = "Install NixOS from the SD card onto the eMMC";
+          };
+        });
 
-      # Run on the board:  sudo nix run .#install-to-emmc
-      apps.aarch64-linux.install-to-emmc = {
-        type = "app";
-        program = "${install-to-emmc}/bin/install-to-emmc";
-      };
-
-      # Dev shell for editing this repo on your build machine
-      devShells.${buildHost}.default = pkgsHost.mkShell {
-        packages = with pkgsHost; [
-          git
-          nixpkgs-fmt
-          alejandra
-          nil
-          nixd
-          just
-          ssh-to-age
-        ];
-        shellHook = ''
-          echo "bpi-m5-nixos dev shell"
-          echo "  build image: ./build.sh or nix build .#packages.aarch64-linux.image"
-          echo "  flash:       ./flash.sh /dev/sdX"
-        '';
-      };
+      devShells = eachSystem (s: {
+        default = (pkgsFor s).mkShell {
+          packages = with (pkgsFor s); [
+            git
+            nixpkgs-fmt
+            alejandra
+            nil
+            nixd
+            just
+            ssh-to-age
+          ];
+          shellHook = ''
+            echo "bpi-m5-nixos dev shell"
+            echo "  build image: ./build.sh or nix build .#sd-image"
+            echo "  flash:       ./flash.sh /dev/sdX (or nix run .#flash -- /dev/sdX)"
+          '';
+        };
+      });
     };
 }

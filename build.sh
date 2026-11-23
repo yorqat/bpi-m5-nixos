@@ -28,7 +28,7 @@ fi
 
 echo "==> Building the image."
 echo "    First run downloads a lot and runs ARM code under emulation: expect 15-60+ minutes."
-nix "${NIX_FLAGS[@]}" build .#packages.aarch64-linux.image -L --out-link result-image
+nix "${NIX_FLAGS[@]}" build .#sd-image -L --out-link result-image
 
 img="$(find -L result-image/sd-image -maxdepth 1 -name '*.img' | head -n1)"
 [ -n "$img" ] || die "Build finished but no .img was found in result-image/sd-image/"
