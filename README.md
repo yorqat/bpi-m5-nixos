@@ -108,11 +108,14 @@ at the image explicitly if needed:
 nix run .#flash -- /dev/sdX result-wifi/sd-image/bpi-m5-nixos.img
 ```
 
-This enables **Wi-Fi only**. Bluetooth on that module needs
-`CONFIG_BT_HCIUART_RTL`, which is off in the stock kernel; enabling it would
-require a custom kernel build and is deliberately not included here. The
-overlay has been built and applied to the pinned device tree, but it has not
-been tested on a real board.
+Bluetooth, plainly:
+
+- A **USB Bluetooth dongle** works in both builds.
+- The **module's Bluetooth** does not work in either build: it needs
+  `CONFIG_BT_HCIUART_RTL`, which is off in the stock kernel (custom kernel required).
+- `wl0`/`wl1` are vendor-image names; here Wi‑Fi will be `wlan0`.
+
+The overlay is build-verified, not hardware-tested.
 
 ## Part 3: Flash to a microSD card
 
@@ -202,10 +205,8 @@ on boot. A leftover vendor bootloader in the eMMC's hardware boot partitions
   detection or `dtoverlay=` mechanism, and this image enables no I2C/SPI overlays;
   a HAT that needs those needs a device-tree overlay and extra tooling. Check the
   BPI-M5 pinout and voltages before attaching a Pi HAT.
-- **Onboard RTL8822CS Wi-Fi is opt-in and untested on hardware.** The `-wifi`
-  variant only enables the SDIO controller; the driver and firmware are already
-  present. Bluetooth on that module is not enabled because the stock kernel
-  lacks `CONFIG_BT_HCIUART_RTL` (a custom kernel would be needed).
+- **Onboard RTL8822CS:** Wi‑Fi is opt-in and untested on hardware; the module's
+  Bluetooth is unsupported (see "Optional: onboard Wi‑Fi").
 - **Warm reboot may hang** on S905X3 boards with an SD card (seen on the Odroid HC4,
   which uses the same SoC; not confirmed on the M5). If it happens, power-cycle
   instead of rebooting.
