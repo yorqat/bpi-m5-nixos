@@ -113,16 +113,18 @@ echo "==> Installing NixOS (downloads a lot; expect 10-40+ minutes)"
 nixos-install --root "$ROOT" --flake "$FLAKE_REF#$HOST_NAME" --no-root-passwd
 
 # Keep a copy of the flake on the new system so you can rebuild from the board.
-mkdir -p "$ROOT/etc/bpi-m5-nixos"
+mkdir -p "$ROOT/etc/bpi-m5-nixos" "$ROOT/home/${userName}/bpi-m5-nixos"
 cp -rT --no-preserve=mode,ownership "$FLAKE_REF" "$ROOT/etc/bpi-m5-nixos"
-chown -R ${USER_NAME}:${USER_NAME} "$ROOT/etc/bpi-m5-nixos" 2>/dev/null || true
+cp -rT --no-preserve=mode,ownership "$FLAKE_REF" "$ROOT/home/${userName}/bpi-m5-nixos"
+chown -R ${userName}:${userName} "$ROOT/etc/bpi-m5-nixos" "$ROOT/home/${userName}/bpi-m5-nixos" 2>/dev/null || true
 
 # Optional: drop a quick note for the user
 mkdir -p "$ROOT/etc/motd.d"
-cat > "$ROOT/etc/motd.d/99-bpi-m5" <<EOF
+cat > "$ROOT/etc/motd.d/99-bpi-m5" <<'EOF'
 NixOS installed from bpi-m5-nixos flake
-Rebuild: nh os switch /etc/bpi-m5-nixos
-Copy edits from PC: rsync -av flake.nix scripts/ user@board:/etc/bpi-m5-nixos/
+Rebuild: nh os switch /etc/bpi-m5-nixos  (or sudo nixos-rebuild switch --flake /etc/bpi-m5-nixos#bpi-m5)
+Flake copies: /etc/bpi-m5-nixos and ~/bpi-m5-nixos
+Copy edits from PC: rsync -av flake.nix scripts/ user@board:~/bpi-m5-nixos/
 EOF
 chmod 644 "$ROOT/etc/motd.d/99-bpi-m5" 2>/dev/null || true
 
