@@ -254,10 +254,10 @@
 
         # eMMC/flash hygiene
         services.fstrim.enable = true;
-        services.journald.extraConfig = ''
-          SystemMaxUse=100M
-          RuntimeMaxUse=50M
-        '';
+        services.journald.settings.Journal = {
+          SystemMaxUse = "100M";
+          RuntimeMaxUse = "50M";
+        };
         boot.loader.generic-extlinux-compatible.configurationLimit = 10;
         boot.zfs.forceImportRoot = false;
 
