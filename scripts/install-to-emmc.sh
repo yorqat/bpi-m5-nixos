@@ -10,7 +10,7 @@
 # FLAKE_REF, HOST_NAME and USER_NAME. It is not meant to be executed directly.
 
 [ "$(id -u)" -eq 0 ] || die "Run as root:  sudo nix run .#install-to-emmc"
-: "${FLAKE_REF:?}" "${HOST_NAME:?}"
+: "${FLAKE_REF:?}" "${HOST_NAME:?}" "${USER_NAME:?}"
 
 ROOT=/mnt/emmc-install
 SWAPFILE="$ROOT/.install-swapfile"
@@ -113,11 +113,11 @@ echo "==> Installing NixOS (downloads a lot; expect 10-40+ minutes)"
 nixos-install --root "$ROOT" --flake "$FLAKE_REF#$HOST_NAME" --no-root-passwd
 
 # Keep a copy of the flake on the new system so you can rebuild from the board.
-mkdir -p "$ROOT/etc/bpi-m5-nixos" "$ROOT/home/${userName}/bpi-m5-nixos"
+mkdir -p "$ROOT/etc/bpi-m5-nixos" "$ROOT/home/${USER_NAME}/bpi-m5-nixos"
 cp -rT --no-preserve=mode,ownership "$FLAKE_REF" "$ROOT/etc/bpi-m5-nixos"
-cp -rT --no-preserve=mode,ownership "$FLAKE_REF" "$ROOT/home/${userName}/bpi-m5-nixos"
-chown -R ${userName}:users "$ROOT/home/${userName}/bpi-m5-nixos" 2>/dev/null || true
-chown -R ${userName}:users "$ROOT/etc/bpi-m5-nixos" 2>/dev/null || true
+cp -rT --no-preserve=mode,ownership "$FLAKE_REF" "$ROOT/home/${USER_NAME}/bpi-m5-nixos"
+chown -R "${USER_NAME}:users" "$ROOT/home/${USER_NAME}/bpi-m5-nixos" 2>/dev/null || true
+chown -R "${USER_NAME}:users" "$ROOT/etc/bpi-m5-nixos" 2>/dev/null || true
 
 # Optional: drop a quick note for the user
 mkdir -p "$ROOT/etc/motd.d"
