@@ -340,6 +340,7 @@
           ${builtins.readFile ./scripts/bootloader.sh}
           write_bootloader "${uboot-fip}/u-boot.bin.sd.bin" "$img"
         '';
+        sdImage.expandOnBoot = true;
 
         environment.systemPackages = with pkgs; [
           (writeShellScriptBin "install-to-emmc" ''
@@ -371,10 +372,12 @@
           device = "/dev/disk/by-label/nixos";
           fsType = "ext4";
           options = [ "noatime" ];
+          autoResize = true;
         };
 
         boot.loader.grub.enable = false;
         boot.loader.generic-extlinux-compatible.enable = true;
+        boot.growPartition = true;
       };
 
       # ---- The installer, as a flake app ------------------------------------

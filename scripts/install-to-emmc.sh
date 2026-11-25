@@ -116,7 +116,8 @@ nixos-install --root "$ROOT" --flake "$FLAKE_REF#$HOST_NAME" --no-root-passwd
 mkdir -p "$ROOT/etc/bpi-m5-nixos" "$ROOT/home/${userName}/bpi-m5-nixos"
 cp -rT --no-preserve=mode,ownership "$FLAKE_REF" "$ROOT/etc/bpi-m5-nixos"
 cp -rT --no-preserve=mode,ownership "$FLAKE_REF" "$ROOT/home/${userName}/bpi-m5-nixos"
-chown -R ${userName}:${userName} "$ROOT/etc/bpi-m5-nixos" "$ROOT/home/${userName}/bpi-m5-nixos" 2>/dev/null || true
+chown -R ${userName}:users "$ROOT/home/${userName}/bpi-m5-nixos" 2>/dev/null || true
+chown -R ${userName}:users "$ROOT/etc/bpi-m5-nixos" 2>/dev/null || true
 
 # Optional: drop a quick note for the user
 mkdir -p "$ROOT/etc/motd.d"
