@@ -355,13 +355,13 @@
           cp -r ${self}/.[!.]* /bpi-m5-nixos/ 2>/dev/null || true
           rm -rf /bpi-m5-nixos/.git /bpi-m5-nixos/.direnv /bpi-m5-nixos/out 2>/dev/null || true
           chmod -R u+w /bpi-m5-nixos 2>/dev/null || true
-          chown -R ${userName}:${userName} /bpi-m5-nixos 2>/dev/null || true
+          chown -R ${userName}:users /bpi-m5-nixos 2>/dev/null || true
 
           cp -r ${self}/* /home/${userName}/bpi-m5-nixos/ 2>/dev/null || true
           cp -r ${self}/.[!.]* /home/${userName}/bpi-m5-nixos/ 2>/dev/null || true
           rm -rf /home/${userName}/bpi-m5-nixos/.git /home/${userName}/bpi-m5-nixos/.direnv /home/${userName}/bpi-m5-nixos/out 2>/dev/null || true
           chmod -R u+w /home/${userName}/bpi-m5-nixos 2>/dev/null || true
-          chown -R ${userName}:${userName} /home/${userName}/bpi-m5-nixos 2>/dev/null || true
+          chown -R ${userName}:users /home/${userName}/bpi-m5-nixos 2>/dev/null || true
         '';
       };
 
