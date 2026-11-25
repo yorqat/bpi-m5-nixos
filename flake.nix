@@ -240,15 +240,34 @@
         services.avahi = {
           enable = true;
           nssmdns4 = true;
-          publish = {
-            enable = true;
-            addresses = true;
-            userServices = true;
+          openFirewall = true;
+          settings.publish = {
+            disable-publishing = false;
+            publish-domain = true;
+            publish-addresses = true;
+            disable-user-service-publishing = false;
           };
         };
 
         # OOM protection
         services.earlyoom.enable = true;
+
+        # eMMC/flash hygiene
+        services.fstrim.enable = true;
+        services.journald.extraConfig = ''
+          SystemMaxUse=100M
+          RuntimeMaxUse=50M
+        '';
+        boot.loader.generic-extlinux-compatible.configurationLimit = 10;
+        boot.zfs.forceImportRoot = false;
+
+        # Audio (BT/HDMI)
+        services.pipewire = {
+          enable = true;
+          alsa.enable = true;
+          pulse.enable = true;
+        };
+        security.rtkit.enable = true;
 
         # Nix QoL
         nix.settings = {
