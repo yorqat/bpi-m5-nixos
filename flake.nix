@@ -492,10 +492,12 @@
             ssh-to-age
           ];
           shellHook = ''
-            echo "bpi-m5-nixos dev shell"
-            echo "  build image: ./build.sh or nix build .#sd-image"
-            echo "  onboard Wi-Fi: nix build .#sd-image-wifi --out-link result-wifi"
-            echo "  flash:       ./flash.sh /dev/sdX (or nix run .#flash -- /dev/sdX)"
+            if [ -t 1 ]; then
+              echo "bpi-m5-nixos dev shell"
+              echo "  build image: nix build .#sd-image -L"
+              echo "  onboard Wi-Fi: nix build .#sd-image-wifi --out-link result-wifi -L"
+              echo "  flash: nix run .#flash -- /dev/sdX"
+            fi
           '';
         };
       });
